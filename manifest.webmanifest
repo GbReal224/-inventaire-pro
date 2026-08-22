@@ -1,7 +1,7 @@
 {
   "name": "Inventaire Pro",
   "short_name": "Inventaire",
-  "description": "Gestion locale de l’inventaire, du stock en main et des commandes.",
+  "description": "Inventaire local avec photos, scan UPC/EAN, Amazon Business, statistiques de coûts et rapports PDF.",
   "lang": "fr-CA",
   "start_url": "./",
   "scope": "./",

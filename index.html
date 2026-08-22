@@ -21,7 +21,10 @@
         <p class="eyebrow">INVENTAIRE LOCAL</p>
         <h1>Inventaire Pro</h1>
       </div>
-      <button id="quickAddBtn" class="icon-btn primary" aria-label="Ajouter un produit">＋</button>
+      <div class="top-actions">
+        <button id="scanTopBtn" class="icon-btn scan-btn" aria-label="Scanner un code-barres">▥</button>
+        <button id="quickAddBtn" class="icon-btn primary" aria-label="Ajouter un produit">＋</button>
+      </div>
     </header>
 
     <main>
@@ -39,6 +42,12 @@
           <article class="kpi-card danger"><span>Ruptures</span><strong id="kpiOut">0</strong></article>
           <article class="kpi-card"><span>Valeur réserve</span><strong id="kpiValue">0,00 $</strong></article>
         </div>
+
+        <section class="panel quick-tools">
+          <button id="dashboardScanBtn" class="tool-btn"><span class="tool-icon">▥</span><span><b>Scanner</b><small>Trouver sur Amazon</small></span></button>
+          <button id="dashboardPdfBtn" class="tool-btn"><span class="tool-icon">PDF</span><span><b>Rapport PDF</b><small>Sauvegarder un rapport</small></span></button>
+          <button id="dashboardStatsBtn" class="tool-btn" data-nav="stats"><span class="tool-icon">▥</span><span><b>Statistiques</b><small>Consommation et valeur</small></span></button>
+        </section>
 
         <section class="panel">
           <div class="panel-title-row">
@@ -66,10 +75,13 @@
             <h2 id="inventoryTitle">Inventaire</h2>
             <p class="muted">Réserve + produits en main</p>
           </div>
-          <button id="addProductBtn" class="small-btn">Ajouter</button>
+          <div class="inline-actions">
+            <button id="inventoryScanBtn" class="small-btn secondary-small">Scanner</button>
+            <button id="addProductBtn" class="small-btn">Ajouter</button>
+          </div>
         </div>
         <div class="filters">
-          <input id="searchInput" type="search" placeholder="Rechercher un produit…" autocomplete="off" />
+          <input id="searchInput" type="search" placeholder="Rechercher nom, code-barres…" autocomplete="off" />
           <select id="categoryFilter"><option value="">Toutes catégories</option></select>
         </div>
         <div id="inventoryList" class="card-list product-list"></div>
@@ -81,6 +93,7 @@
             <h2 id="ordersTitle">À commander</h2>
             <p class="muted">Calculé selon le minimum et le stock cible</p>
           </div>
+          <button id="ordersPdfBtn" class="small-btn secondary-small">PDF</button>
         </div>
         <div class="order-summary panel">
           <div><span>Articles</span><strong id="orderItemsCount">0</strong></div>
@@ -88,6 +101,53 @@
           <div><span>Budget estimé</span><strong id="orderBudget">0,00 $</strong></div>
         </div>
         <div id="ordersList" class="card-list"></div>
+      </section>
+
+      <section id="statsView" class="view" aria-labelledby="statsTitle">
+        <div class="section-head">
+          <div>
+            <h2 id="statsTitle">Statistiques</h2>
+            <p class="muted">Consommation, valeur et couverture</p>
+          </div>
+          <select id="statsPeriod" class="period-select" aria-label="Période des statistiques">
+            <option value="7">7 jours</option>
+            <option value="30" selected>30 jours</option>
+            <option value="90">90 jours</option>
+            <option value="365">1 an</option>
+          </select>
+        </div>
+
+        <div class="kpi-grid stats-kpi-grid">
+          <article class="kpi-card"><span>Coût total du stock</span><strong id="statTotalValue">0,00 $</strong></article>
+          <article class="kpi-card"><span>Coût en réserve</span><strong id="statReserveCost">0,00 $</strong></article>
+          <article class="kpi-card"><span>Coût en main</span><strong id="statInHandCost">0,00 $</strong></article>
+          <article class="kpi-card warning"><span>Coût consommé période</span><strong id="statConsumedCost">0,00 $</strong></article>
+          <article class="kpi-card warning"><span>Budget commandes</span><strong id="statOrderBudget">0,00 $</strong></article>
+          <article class="kpi-card"><span>Coût unitaire moyen</span><strong id="statAvgUnitCost">0,00 $</strong></article>
+          <article class="kpi-card"><span>Santé du stock</span><strong id="statHealth">0 %</strong></article>
+          <article class="kpi-card"><span>Mouvements période</span><strong id="statMoves">0</strong></article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-title-row"><h3>Produits les plus consommés</h3><span id="usagePeriodLabel" class="tiny-muted"></span></div>
+          <div id="usageChart" class="bar-chart"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title-row"><h3>Coût de consommation par produit</h3><span id="costPeriodLabel" class="tiny-muted"></span></div>
+          <div id="consumptionCostChart" class="bar-chart"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Valeur de réserve par catégorie</h3>
+          <div id="categoryChart" class="bar-chart"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Couverture estimée</h3>
+          <p class="helper stats-help">Basée sur les consommations enregistrées pendant la période choisie. Plus tu utilises le journal de mouvements, plus l’estimation devient utile.</p>
+          <div id="coverageList" class="coverage-list"></div>
+        </section>
       </section>
 
       <section id="historyView" class="view" aria-labelledby="historyTitle">
@@ -108,25 +168,21 @@
           </div>
         </div>
         <section class="panel settings-list">
-          <button id="exportBtn" class="settings-row"><span>Exporter une sauvegarde</span><b>JSON</b></button>
+          <button id="exportPdfBtn" class="settings-row"><span>Exporter un rapport d’inventaire</span><b>PDF</b></button>
+          <button id="exportBtn" class="settings-row"><span>Exporter une sauvegarde complète</span><b>JSON</b></button>
           <label class="settings-row file-row"><span>Importer une sauvegarde</span><b>Choisir</b><input id="importInput" type="file" accept="application/json,.json" /></label>
           <button id="exportCsvBtn" class="settings-row"><span>Exporter l’inventaire</span><b>CSV</b></button>
           <button id="seedBtn" class="settings-row"><span>Ajouter les exemples</span><b>Démo</b></button>
           <button id="clearBtn" class="settings-row destructive"><span>Effacer toutes les données</span><b>Effacer</b></button>
         </section>
         <section class="panel">
-          <h3>Sauvegarde locale</h3>
-          <p class="helper">L’application utilise la base de données locale du navigateur (IndexedDB). Les données ne sont pas envoyées sur Internet.</p>
-          <p class="helper"><b>Important :</b> garde occasionnellement une sauvegarde JSON dans Fichiers/iCloud. Cela protège ton inventaire si Safari ou iOS supprime les données d’un site.</p>
+          <h3>Amazon Business</h3>
+          <p class="helper">Après un scan, l’app recherche le code-barres directement sur Amazon.ca. Si tu es connecté avec ton compte Amazon Business, tu peux ensuite acheter avec ton compte professionnel. Une fois le bon produit trouvé, colle son lien dans la fiche pour que le bouton <b>Commander Amazon Business</b> ouvre directement cette page la prochaine fois.</p>
         </section>
         <section class="panel">
-          <h3>Installation sur iPhone</h3>
-          <ol class="install-steps">
-            <li>Ouvre l’adresse de l’app dans Safari.</li>
-            <li>Appuie sur <b>Partager</b>.</li>
-            <li>Choisis <b>Sur l’écran d’accueil</b>.</li>
-            <li>Ouvre ensuite l’app depuis son icône.</li>
-          </ol>
+          <h3>Sauvegarde locale</h3>
+          <p class="helper">Produits, photos et historique utilisent IndexedDB sur cet appareil. Aucune donnée d’inventaire n’est envoyée par cette app.</p>
+          <p class="helper"><b>Important :</b> garde occasionnellement une sauvegarde JSON dans Fichiers/iCloud. Elle contient aussi les photos enregistrées dans les fiches.</p>
         </section>
       </section>
     </main>
@@ -135,6 +191,7 @@
       <button class="nav-btn active" data-view="dashboard"><span>⌂</span><small>Accueil</small></button>
       <button class="nav-btn" data-view="inventory"><span>▦</span><small>Inventaire</small></button>
       <button class="nav-btn" data-view="orders"><span>🛒</span><small>Commander</small></button>
+      <button class="nav-btn" data-view="stats"><span>▥</span><small>Stats</small></button>
       <button class="nav-btn" data-view="history"><span>↺</span><small>Historique</small></button>
       <button class="nav-btn" data-view="settings"><span>⚙</span><small>Réglages</small></button>
     </nav>
@@ -147,10 +204,28 @@
         <button type="button" class="close-btn" data-close="productDialog">×</button>
       </div>
       <input id="productId" type="hidden" />
+
+      <div class="photo-editor">
+        <div id="photoPlaceholder" class="photo-placeholder">PHOTO</div>
+        <img id="productPhotoPreview" class="photo-preview hidden" alt="Photo du produit" />
+        <div class="photo-actions">
+          <label class="secondary-btn file-photo-btn">Ajouter / changer la photo<input id="productPhotoInput" type="file" accept="image/*" capture="environment" /></label>
+          <button id="removePhotoBtn" type="button" class="text-btn danger-text hidden">Retirer</button>
+        </div>
+      </div>
+
       <div class="form-grid">
-        <label class="full">Nom du produit<input id="productName" required maxlength="80" placeholder="Ex. Nettoyant intérieur" /></label>
+        <label class="full">Nom du produit<input id="productName" required maxlength="100" placeholder="Ex. Nettoyant intérieur" /></label>
         <label>Catégorie<input id="productCategory" maxlength="40" placeholder="Ex. Intérieur" /></label>
         <label>Unité<select id="productUnit"><option>unité</option><option>bouteille</option><option>bidon</option><option>boîte</option><option>paquet</option><option>litre</option><option>mL</option></select></label>
+
+        <label class="full barcode-field">Code-barres UPC / EAN
+          <div class="input-with-btn">
+            <input id="barcode" inputmode="numeric" maxlength="18" placeholder="Scanner ou entrer les chiffres" />
+            <button id="scanFromFormBtn" type="button" class="field-btn">Scanner</button>
+          </div>
+        </label>
+
         <label>En inventaire / réserve<input id="reserveStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>En main<input id="inHandStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Minimum en réserve<input id="minReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
@@ -158,8 +233,11 @@
         <label>Coût par unité<input id="unitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Fournisseur<input id="supplier" maxlength="60" placeholder="Ex. Amazon Business" /></label>
         <label>Emplacement<input id="location" maxlength="60" placeholder="Ex. Étagère garage" /></label>
-        <label>Lien produit<input id="productUrl" type="url" inputmode="url" placeholder="https://…" /></label>
-        <label class="full">Notes<textarea id="notes" rows="3" maxlength="300" placeholder="Dilution, format, usage, etc."></textarea></label>
+        <label class="full">Lien exact du produit<input id="productUrl" type="url" inputmode="url" placeholder="https://www.amazon.ca/…" /></label>
+        <div class="full amazon-form-actions">
+          <button id="amazonSearchFormBtn" type="button" class="amazon-btn">Chercher sur Amazon Business</button>
+        </div>
+        <label class="full">Notes<textarea id="notes" rows="3" maxlength="400" placeholder="Dilution, format, usage, etc."></textarea></label>
       </div>
       <div class="formula-preview" id="formulaPreview"></div>
       <div class="modal-actions">
@@ -192,6 +270,34 @@
       <label>Note<input id="movementNote" maxlength="120" placeholder="Optionnel" /></label>
       <div class="modal-actions"><div class="spacer"></div><button type="button" class="secondary-btn" data-close="movementDialog">Annuler</button><button type="submit" class="primary-btn">Appliquer</button></div>
     </form>
+  </dialog>
+
+  <dialog id="scannerDialog" class="modal scanner-modal">
+    <div class="scanner-wrap">
+      <div class="modal-head">
+        <div><p class="eyebrow">SCAN UPC / EAN</p><h2>Scanner un produit</h2></div>
+        <button id="scannerCloseBtn" type="button" class="close-btn">×</button>
+      </div>
+      <div class="scanner-stage">
+        <video id="scannerVideo" playsinline muted></video>
+        <div class="scan-guide"><span></span></div>
+        <canvas id="scannerCanvas" class="hidden"></canvas>
+      </div>
+      <p id="scannerStatus" class="scanner-status">Place le code-barres horizontalement dans le cadre.</p>
+      <div class="manual-code-row">
+        <input id="manualBarcode" inputmode="numeric" maxlength="18" placeholder="Ou entrer le code manuellement" />
+        <button id="manualCodeBtn" type="button" class="secondary-btn">Utiliser</button>
+      </div>
+      <div id="scanResult" class="scan-result hidden">
+        <span>Code détecté</span>
+        <strong id="scanCodeText"></strong>
+        <div class="scan-result-actions">
+          <button id="scanUseBtn" type="button" class="primary-btn">Utiliser ce code</button>
+          <button id="scanAmazonBtn" type="button" class="amazon-btn">Chercher Amazon Business</button>
+        </div>
+      </div>
+      <p class="helper scanner-help">La caméra reste sur ton iPhone. L’app lit les codes UPC-A, EAN-13 et EAN-8. Si le scan ne prend pas, utilise les chiffres imprimés sous le code-barres.</p>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

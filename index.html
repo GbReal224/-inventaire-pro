@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b5bd3" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Inventaire" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="stylesheet" href="app.css" />
+  <title>Inventaire Pro</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">INVENTAIRE LOCAL</p>
+        <h1>Inventaire Pro</h1>
+      </div>
+      <button id="quickAddBtn" class="icon-btn primary" aria-label="Ajouter un produit">＋</button>
+    </header>
+
+    <main>
+      <section id="dashboardView" class="view active" aria-labelledby="dashboardTitle">
+        <div class="section-head">
+          <div>
+            <h2 id="dashboardTitle">Vue d’ensemble</h2>
+            <p id="lastSavedText" class="muted">Sauvegarde locale active</p>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <article class="kpi-card"><span>Produits</span><strong id="kpiProducts">0</strong></article>
+          <article class="kpi-card warning"><span>À commander</span><strong id="kpiOrder">0</strong></article>
+          <article class="kpi-card danger"><span>Ruptures</span><strong id="kpiOut">0</strong></article>
+          <article class="kpi-card"><span>Valeur réserve</span><strong id="kpiValue">0,00 $</strong></article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>Priorités</h3>
+            <button class="text-btn" data-nav="orders">Voir tout</button>
+          </div>
+          <div id="priorityList" class="card-list"></div>
+        </section>
+
+        <section class="panel compact-panel">
+          <h3>Lecture rapide</h3>
+          <div class="legend">
+            <span><i class="dot ok"></i> OK</span>
+            <span><i class="dot watch"></i> À surveiller</span>
+            <span><i class="dot order"></i> Commander</span>
+            <span><i class="dot out"></i> Rupture</span>
+          </div>
+          <p class="helper">Le minimum s’applique à la <b>réserve</b>. Le produit actuellement ouvert ou dans ton véhicule reste compté séparément comme <b>en main</b>.</p>
+        </section>
+      </section>
+
+      <section id="inventoryView" class="view" aria-labelledby="inventoryTitle">
+        <div class="section-head sticky-head">
+          <div>
+            <h2 id="inventoryTitle">Inventaire</h2>
+            <p class="muted">Réserve + produits en main</p>
+          </div>
+          <button id="addProductBtn" class="small-btn">Ajouter</button>
+        </div>
+        <div class="filters">
+          <input id="searchInput" type="search" placeholder="Rechercher un produit…" autocomplete="off" />
+          <select id="categoryFilter"><option value="">Toutes catégories</option></select>
+        </div>
+        <div id="inventoryList" class="card-list product-list"></div>
+      </section>
+
+      <section id="ordersView" class="view" aria-labelledby="ordersTitle">
+        <div class="section-head">
+          <div>
+            <h2 id="ordersTitle">À commander</h2>
+            <p class="muted">Calculé selon le minimum et le stock cible</p>
+          </div>
+        </div>
+        <div class="order-summary panel">
+          <div><span>Articles</span><strong id="orderItemsCount">0</strong></div>
+          <div><span>Unités</span><strong id="orderUnitsCount">0</strong></div>
+          <div><span>Budget estimé</span><strong id="orderBudget">0,00 $</strong></div>
+        </div>
+        <div id="ordersList" class="card-list"></div>
+      </section>
+
+      <section id="historyView" class="view" aria-labelledby="historyTitle">
+        <div class="section-head">
+          <div>
+            <h2 id="historyTitle">Historique</h2>
+            <p class="muted">Tous les mouvements de stock</p>
+          </div>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+
+      <section id="settingsView" class="view" aria-labelledby="settingsTitle">
+        <div class="section-head">
+          <div>
+            <h2 id="settingsTitle">Réglages</h2>
+            <p class="muted">Données conservées sur cet iPhone</p>
+          </div>
+        </div>
+        <section class="panel settings-list">
+          <button id="exportBtn" class="settings-row"><span>Exporter une sauvegarde</span><b>JSON</b></button>
+          <label class="settings-row file-row"><span>Importer une sauvegarde</span><b>Choisir</b><input id="importInput" type="file" accept="application/json,.json" /></label>
+          <button id="exportCsvBtn" class="settings-row"><span>Exporter l’inventaire</span><b>CSV</b></button>
+          <button id="seedBtn" class="settings-row"><span>Ajouter les exemples</span><b>Démo</b></button>
+          <button id="clearBtn" class="settings-row destructive"><span>Effacer toutes les données</span><b>Effacer</b></button>
+        </section>
+        <section class="panel">
+          <h3>Sauvegarde locale</h3>
+          <p class="helper">L’application utilise la base de données locale du navigateur (IndexedDB). Les données ne sont pas envoyées sur Internet.</p>
+          <p class="helper"><b>Important :</b> garde occasionnellement une sauvegarde JSON dans Fichiers/iCloud. Cela protège ton inventaire si Safari ou iOS supprime les données d’un site.</p>
+        </section>
+        <section class="panel">
+          <h3>Installation sur iPhone</h3>
+          <ol class="install-steps">
+            <li>Ouvre l’adresse de l’app dans Safari.</li>
+            <li>Appuie sur <b>Partager</b>.</li>
+            <li>Choisis <b>Sur l’écran d’accueil</b>.</li>
+            <li>Ouvre ensuite l’app depuis son icône.</li>
+          </ol>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <button class="nav-btn active" data-view="dashboard"><span>⌂</span><small>Accueil</small></button>
+      <button class="nav-btn" data-view="inventory"><span>▦</span><small>Inventaire</small></button>
+      <button class="nav-btn" data-view="orders"><span>🛒</span><small>Commander</small></button>
+      <button class="nav-btn" data-view="history"><span>↺</span><small>Historique</small></button>
+      <button class="nav-btn" data-view="settings"><span>⚙</span><small>Réglages</small></button>
+    </nav>
+  </div>
+
+  <dialog id="productDialog" class="modal">
+    <form id="productForm" method="dialog">
+      <div class="modal-head">
+        <div><p class="eyebrow">FICHE PRODUIT</p><h2 id="productDialogTitle">Ajouter un produit</h2></div>
+        <button type="button" class="close-btn" data-close="productDialog">×</button>
+      </div>
+      <input id="productId" type="hidden" />
+      <div class="form-grid">
+        <label class="full">Nom du produit<input id="productName" required maxlength="80" placeholder="Ex. Nettoyant intérieur" /></label>
+        <label>Catégorie<input id="productCategory" maxlength="40" placeholder="Ex. Intérieur" /></label>
+        <label>Unité<select id="productUnit"><option>unité</option><option>bouteille</option><option>bidon</option><option>boîte</option><option>paquet</option><option>litre</option><option>mL</option></select></label>
+        <label>En inventaire / réserve<input id="reserveStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>En main<input id="inHandStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>Minimum en réserve<input id="minReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>Stock cible<input id="targetReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>Coût par unité<input id="unitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>Fournisseur<input id="supplier" maxlength="60" placeholder="Ex. Amazon Business" /></label>
+        <label>Emplacement<input id="location" maxlength="60" placeholder="Ex. Étagère garage" /></label>
+        <label>Lien produit<input id="productUrl" type="url" inputmode="url" placeholder="https://…" /></label>
+        <label class="full">Notes<textarea id="notes" rows="3" maxlength="300" placeholder="Dilution, format, usage, etc."></textarea></label>
+      </div>
+      <div class="formula-preview" id="formulaPreview"></div>
+      <div class="modal-actions">
+        <button id="deleteProductBtn" type="button" class="danger-btn hidden">Supprimer</button>
+        <div class="spacer"></div>
+        <button type="button" class="secondary-btn" data-close="productDialog">Annuler</button>
+        <button type="submit" class="primary-btn">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="movementDialog" class="modal small-modal">
+    <form id="movementForm" method="dialog">
+      <div class="modal-head">
+        <div><p class="eyebrow">MOUVEMENT</p><h2 id="movementProductName">Produit</h2></div>
+        <button type="button" class="close-btn" data-close="movementDialog">×</button>
+      </div>
+      <input id="movementProductId" type="hidden" />
+      <label>Action<select id="movementType">
+        <option value="receive">Réception → réserve</option>
+        <option value="open">Sortir de réserve → en main</option>
+        <option value="consume">Consommer depuis “en main”</option>
+        <option value="return">Retourner “en main” → réserve</option>
+        <option value="reservePlus">Ajustement réserve +</option>
+        <option value="reserveMinus">Ajustement réserve −</option>
+        <option value="handPlus">Ajustement en main +</option>
+        <option value="handMinus">Ajustement en main −</option>
+      </select></label>
+      <label>Quantité<input id="movementQty" type="number" min="0.01" step="0.01" inputmode="decimal" value="1" required /></label>
+      <label>Note<input id="movementNote" maxlength="120" placeholder="Optionnel" /></label>
+      <div class="modal-actions"><div class="spacer"></div><button type="button" class="secondary-btn" data-close="movementDialog">Annuler</button><button type="submit" class="primary-btn">Appliquer</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

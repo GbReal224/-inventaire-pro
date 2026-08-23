@@ -1,0 +1,21 @@
+INVENTAIRE PRO 3.1 — BASE V3 + AMÉLIORATIONS
+
+Cette version conserve les fonctions de la v3 d'origine et ajoute :
+- suivi réel des achats/réceptions;
+- coût payé par unité et coût total de chaque achat;
+- coût moyen automatique du produit lors d'une nouvelle réception;
+- achats de la période, du mois et total dans les statistiques;
+- historique des achats séparé;
+- choix d'une photo depuis la photothèque de l'iPhone;
+- prise de photo directe;
+- scanner UPC/EAN basé sur ZXing;
+- option Photo du code si la caméra en direct a de la difficulté.
+
+RÈGLE DES ACHATS
+- Mouvement > Réception / Achat : compte comme achat/dépense.
+- Ajustement + : ne compte pas comme achat.
+- Modifier un produit : ne compte pas comme achat.
+- Stock initial lors de la création : ne compte pas comme achat.
+
+Avant la mise à jour, exporter une sauvegarde JSON depuis Réglages.
+Pour GitHub Pages, remplacer les anciens fichiers à la racine du dépôt par les fichiers de ce ZIP.

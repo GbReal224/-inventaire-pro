@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="app.css" />
+  <link rel="stylesheet" href="app.css?v=3.1" />
   <title>Inventaire Pro</title>
 </head>
 <body>
@@ -41,6 +41,8 @@
           <article class="kpi-card warning"><span>À commander</span><strong id="kpiOrder">0</strong></article>
           <article class="kpi-card danger"><span>Ruptures</span><strong id="kpiOut">0</strong></article>
           <article class="kpi-card"><span>Valeur réserve</span><strong id="kpiValue">0,00 $</strong></article>
+          <article class="kpi-card purchase"><span>Achats ce mois</span><strong id="kpiPurchaseMonth">0,00 $</strong></article>
+          <article class="kpi-card purchase"><span>Achats enregistrés</span><strong id="kpiPurchaseTotal">0,00 $</strong></article>
         </div>
 
         <section class="panel quick-tools">
@@ -126,6 +128,9 @@
           <article class="kpi-card"><span>Coût unitaire moyen</span><strong id="statAvgUnitCost">0,00 $</strong></article>
           <article class="kpi-card"><span>Santé du stock</span><strong id="statHealth">0 %</strong></article>
           <article class="kpi-card"><span>Mouvements période</span><strong id="statMoves">0</strong></article>
+          <article class="kpi-card purchase"><span>Achats période</span><strong id="statPurchasesPeriod">0,00 $</strong></article>
+          <article class="kpi-card purchase"><span>Achats ce mois</span><strong id="statPurchasesMonth">0,00 $</strong></article>
+          <article class="kpi-card purchase"><span>Achats enregistrés</span><strong id="statPurchasesTotal">0,00 $</strong></article>
         </div>
 
         <section class="panel">
@@ -154,9 +159,20 @@
         <div class="section-head">
           <div>
             <h2 id="historyTitle">Historique</h2>
-            <p class="muted">Tous les mouvements de stock</p>
+            <p class="muted">Achats et mouvements de stock</p>
           </div>
         </div>
+        <div class="purchase-summary panel">
+          <div><span>Achats ce mois</span><strong id="historyPurchaseMonth">0,00 $</strong></div>
+          <div><span>Achats enregistrés</span><strong id="historyPurchaseTotal">0,00 $</strong></div>
+          <div><span>Réceptions achetées</span><strong id="historyPurchaseCount">0</strong></div>
+        </div>
+        <section class="panel">
+          <div class="panel-title-row"><h3>Historique des achats</h3></div>
+          <p class="helper history-helper">Seules les actions « Réception / Achat » enregistrées avec cette version sont comptées comme dépenses. Les ajustements +, les modifications et le stock initial d’un nouveau produit ne comptent pas comme achats.</p>
+          <div id="purchaseHistoryList" class="history-list"></div>
+        </section>
+        <div class="section-subhead"><h3>Tous les mouvements</h3></div>
         <div id="historyList" class="history-list"></div>
       </section>
 
@@ -184,6 +200,10 @@
           <p class="helper">Produits, photos et historique utilisent IndexedDB sur cet appareil. Aucune donnée d’inventaire n’est envoyée par cette app.</p>
           <p class="helper"><b>Important :</b> garde occasionnellement une sauvegarde JSON dans Fichiers/iCloud. Elle contient aussi les photos enregistrées dans les fiches.</p>
         </section>
+        <section class="panel">
+          <h3>Version</h3>
+          <p class="helper"><b>Inventaire Pro 3.1</b> — version v3 complète avec suivi réel des achats, coût moyen automatique, photothèque iPhone et scanner ZXing UPC/EAN.</p>
+        </section>
       </section>
     </main>
 
@@ -209,7 +229,8 @@
         <div id="photoPlaceholder" class="photo-placeholder">PHOTO</div>
         <img id="productPhotoPreview" class="photo-preview hidden" alt="Photo du produit" />
         <div class="photo-actions">
-          <label class="secondary-btn file-photo-btn">Ajouter / changer la photo<input id="productPhotoInput" type="file" accept="image/*" capture="environment" /></label>
+          <label class="secondary-btn file-photo-btn">Choisir dans Photos<input id="photoLibraryInput" type="file" accept="image/*" /></label>
+          <label class="secondary-btn file-photo-btn">Prendre une photo<input id="photoCameraInput" type="file" accept="image/*" capture="environment" /></label>
           <button id="removePhotoBtn" type="button" class="text-btn danger-text hidden">Retirer</button>
         </div>
       </div>
@@ -230,13 +251,14 @@
         <label>En main<input id="inHandStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Minimum en réserve<input id="minReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Stock cible<input id="targetReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
-        <label>Coût par unité<input id="unitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label class="cost-field">Coût par unité (CAD)<input id="unitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Fournisseur<input id="supplier" maxlength="60" placeholder="Ex. Amazon Business" /></label>
         <label>Emplacement<input id="location" maxlength="60" placeholder="Ex. Étagère garage" /></label>
         <label class="full">Lien exact du produit<input id="productUrl" type="url" inputmode="url" placeholder="https://www.amazon.ca/…" /></label>
         <div class="full amazon-form-actions">
           <button id="amazonSearchFormBtn" type="button" class="amazon-btn">Chercher sur Amazon Business</button>
         </div>
+        <div class="full initial-stock-note">Le stock entré directement dans cette fiche change la valeur de l’inventaire, mais n’est pas compté comme un achat. Pour enregistrer une dépense, utilise <b>Mouvement → Réception / Achat</b>.</div>
         <label class="full">Notes<textarea id="notes" rows="3" maxlength="400" placeholder="Dilution, format, usage, etc."></textarea></label>
       </div>
       <div class="formula-preview" id="formulaPreview"></div>
@@ -257,7 +279,7 @@
       </div>
       <input id="movementProductId" type="hidden" />
       <label>Action<select id="movementType">
-        <option value="receive">Réception → réserve</option>
+        <option value="receive">Réception / Achat → réserve</option>
         <option value="open">Sortir de réserve → en main</option>
         <option value="consume">Consommer depuis “en main”</option>
         <option value="return">Retourner “en main” → réserve</option>
@@ -267,6 +289,11 @@
         <option value="handMinus">Ajustement en main −</option>
       </select></label>
       <label>Quantité<input id="movementQty" type="number" min="0.01" step="0.01" inputmode="decimal" value="1" required /></label>
+      <div id="movementPurchaseFields" class="purchase-fields">
+        <label>Coût payé par unité (CAD)<input id="movementUnitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <div id="movementPurchasePreview" class="purchase-preview">Coût de cet achat : 0,00 $</div>
+        <p class="helper">Ce coût est enregistré dans les statistiques. Le coût moyen du produit est recalculé automatiquement.</p>
+      </div>
       <label>Note<input id="movementNote" maxlength="120" placeholder="Optionnel" /></label>
       <div class="modal-actions"><div class="spacer"></div><button type="button" class="secondary-btn" data-close="movementDialog">Annuler</button><button type="submit" class="primary-btn">Appliquer</button></div>
     </form>
@@ -288,6 +315,11 @@
         <input id="manualBarcode" inputmode="numeric" maxlength="18" placeholder="Ou entrer le code manuellement" />
         <button id="manualCodeBtn" type="button" class="secondary-btn">Utiliser</button>
       </div>
+      <div class="scanner-extra-actions">
+        <label class="secondary-btn file-photo-btn">Photo du code<input id="barcodeImageInput" type="file" accept="image/*" capture="environment" /></label>
+        <button id="retryScannerBtn" type="button" class="secondary-btn">Relancer la caméra</button>
+      </div>
+      <img id="barcodeDecodeImage" class="hidden" alt="" />
       <div id="scanResult" class="scan-result hidden">
         <span>Code détecté</span>
         <strong id="scanCodeText"></strong>
@@ -296,11 +328,11 @@
           <button id="scanAmazonBtn" type="button" class="amazon-btn">Chercher Amazon Business</button>
         </div>
       </div>
-      <p class="helper scanner-help">La caméra reste sur ton iPhone. L’app lit les codes UPC-A, EAN-13 et EAN-8. Si le scan ne prend pas, utilise les chiffres imprimés sous le code-barres.</p>
+      <p class="helper scanner-help">Le scanner utilise ZXing pour lire les codes UPC/EAN. Si la lecture en direct ne prend pas, utilise « Photo du code » ou entre les chiffres imprimés sous le code-barres.</p>
     </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=3.1"></script>
 </body>
 </html>

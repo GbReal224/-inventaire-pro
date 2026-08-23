@@ -7,11 +7,10 @@ let products = [];
 let movements = [];
 let toastTimer;
 let tempPhotoData = '';
-let scannerStream = null;
-let scannerTimer = null;
+let scannerControls = null;
+let scannerReader = null;
 let scannerTarget = 'standalone';
 let scanLastCode = '';
-let barcodeDetector = null;
 
 const $ = (id) => document.getElementById(id);
 const fmtQty = (n) => Number(n || 0).toLocaleString('fr-CA', { maximumFractionDigits: 2 });
@@ -53,6 +52,14 @@ function normalizeBarcode(v=''){return String(v).replace(/\D/g,'').slice(0,18)}
 function amazonSearchUrl(term){return `https://www.amazon.ca/s?k=${encodeURIComponent(String(term||'').trim())}`}
 function productAmazonUrl(p){return p?.productUrl?.trim() || amazonSearchUrl(p?.barcode || p?.name || '')}
 function openExternal(url){if(!url)return;window.open(url,'_blank','noopener,noreferrer')}
+function isPurchaseMovement(m){return m?.type==='receive' && m?.isPurchase===true}
+function isSameLocalMonth(dateValue,ref=new Date()){const d=new Date(dateValue);return !Number.isNaN(d.getTime())&&d.getFullYear()===ref.getFullYear()&&d.getMonth()===ref.getMonth()}
+function purchaseTotals(days=null){
+  const list=movements.filter(isPurchaseMovement);
+  const filtered=days==null?list:list.filter(m=>new Date(m.date).getTime()>=Date.now()-Number(days)*86400000);
+  return {total:filtered.reduce((s,m)=>s+Number(m.purchaseTotalCost||0),0),count:filtered.length,list:filtered};
+}
+function purchaseMonthTotals(){const list=movements.filter(m=>isPurchaseMovement(m)&&isSameLocalMonth(m.date));return {total:list.reduce((s,m)=>s+Number(m.purchaseTotalCost||0),0),count:list.length,list};}
 
 async function loadData(){
   products=(await getAll(PRODUCTS)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr'));
@@ -65,6 +72,8 @@ function renderDashboard(){
   $('kpiOrder').textContent=products.filter(p=>['order','out'].includes(statusOf(p).key)).length;
   $('kpiOut').textContent=products.filter(p=>statusOf(p).key==='out').length;
   $('kpiValue').textContent=fmtMoney(products.reduce((s,p)=>s+Number(p.reserveStock||0)*Number(p.unitCost||0),0));
+  $('kpiPurchaseMonth').textContent=fmtMoney(purchaseMonthTotals().total);
+  $('kpiPurchaseTotal').textContent=fmtMoney(purchaseTotals().total);
   const priorities=products.filter(p=>statusOf(p).key!=='ok').sort(prioritySort).slice(0,5);
   $('priorityList').innerHTML=priorities.length?priorities.map(priorityCard).join(''):'<div class="empty">Aucune priorité pour le moment.</div>';
   bindCardActions($('priorityList'));
@@ -102,7 +111,15 @@ function orderCard(p){
   return `<article class="order-card"><div class="product-top"><div>${productIdentityHtml(p)}<div class="product-meta">${escapeHtml(p.supplier||'Fournisseur non défini')} • réserve ${fmtQty(p.reserveStock)} / min. ${fmtQty(p.minReserve)}</div></div><span class="status ${s.key}">${s.label}</span></div><div class="order-line"><span>Commander</span><strong>${fmtQty(q)} ${escapeHtml(p.unit)}</strong></div><div class="product-meta" style="margin-top:8px">Coût estimé : ${fmtMoney(q*Number(p.unitCost||0))}</div><div class="product-actions"><button class="action-btn amazon-action" data-amazon="${p.id}">Commander Amazon Business</button><button class="action-btn primary-action" data-move="${p.id}">Réception / mouvement</button><button class="action-btn" data-edit="${p.id}">Modifier</button></div></article>`
 }
 function renderHistory(){
-  $('historyList').innerHTML=movements.length?movements.slice(0,300).map(m=>{const p=products.find(x=>x.id===m.productId);return `<article class="history-item"><div><div class="name">${escapeHtml(m.productName||p?.name||'Produit')}</div><div class="detail">${escapeHtml(m.label)}${m.note?' • '+escapeHtml(m.note):''}</div></div><div class="qty">${m.sign||''}${fmtQty(m.qty)}</div><div class="time">${new Date(m.date).toLocaleString('fr-CA',{dateStyle:'medium',timeStyle:'short'})}</div></article>`}).join(''):'<div class="empty">Aucun mouvement enregistré.</div>';
+  const allPurchases=purchaseTotals(),month=purchaseMonthTotals();
+  $('historyPurchaseMonth').textContent=fmtMoney(month.total);
+  $('historyPurchaseTotal').textContent=fmtMoney(allPurchases.total);
+  $('historyPurchaseCount').textContent=allPurchases.count;
+  $('purchaseHistoryList').innerHTML=allPurchases.list.length?allPurchases.list.slice(0,200).map(m=>{
+    const p=products.find(x=>x.id===m.productId),unitCost=Number(m.purchaseUnitCost||0),total=Number(m.purchaseTotalCost||0);
+    return `<article class="history-item purchase-history-item"><div><div class="name">${escapeHtml(m.productName||p?.name||'Produit')}</div><div class="detail">${fmtQty(m.qty)} ${escapeHtml(p?.unit||'unité')} × ${fmtMoney(unitCost)}${m.note?' • '+escapeHtml(m.note):''}</div></div><div class="qty purchase-total">${fmtMoney(total)}</div><div class="time">${new Date(m.date).toLocaleString('fr-CA',{dateStyle:'medium',timeStyle:'short'})}</div></article>`;
+  }).join(''):'<div class="empty">Aucun achat enregistré avec cette version.</div>';
+  $('historyList').innerHTML=movements.length?movements.slice(0,300).map(m=>{const p=products.find(x=>x.id===m.productId);const purchase=isPurchaseMovement(m)?` • achat ${fmtMoney(m.purchaseTotalCost||0)}`:'';return `<article class="history-item"><div><div class="name">${escapeHtml(m.productName||p?.name||'Produit')}</div><div class="detail">${escapeHtml(m.label)}${m.note?' • '+escapeHtml(m.note):''}${purchase}</div></div><div class="qty">${m.sign||''}${fmtQty(m.qty)}</div><div class="time">${new Date(m.date).toLocaleString('fr-CA',{dateStyle:'medium',timeStyle:'short'})}</div></article>`}).join(''):'<div class="empty">Aucun mouvement enregistré.</div>';
 }
 function renderCategories(){const select=$('categoryFilter'),current=select.value;const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));select.innerHTML='<option value="">Toutes catégories</option>'+cats.map(c=>`<option ${c===current?'selected':''}>${escapeHtml(c)}</option>`).join('')}
 function bindCardActions(root){
@@ -129,7 +146,8 @@ function updateFormulaPreview(){
   const missing=reserve<min?Math.max(0,target-reserve):0;
   $('formulaPreview').innerHTML=`<b>Calcul :</b> ${fmtQty(reserve)} en réserve + ${fmtQty(hand)} en main = ${fmtQty(reserve+hand)} disponibles.<br>Minimum réserve : ${fmtQty(min)}. ${missing>0?`À commander : <b>${fmtQty(missing)}</b> pour remonter la réserve à ${fmtQty(target)}.`:'Aucune commande requise.'}`;
 }
-function openMovement(p){$('movementForm').reset();$('movementProductId').value=p.id;$('movementProductName').textContent=p.name;$('movementQty').value=1;$('movementDialog').showModal()}
+function openMovement(p,defaultType='receive'){$('movementForm').reset();$('movementProductId').value=p.id;$('movementProductName').textContent=p.name;$('movementType').value=defaultType;$('movementQty').value=1;$('movementUnitCost').value=Number(p.unitCost||0).toFixed(2);updateMovementPurchaseFields();$('movementDialog').showModal()}
+function updateMovementPurchaseFields(){const isPurchase=$('movementType').value==='receive';$('movementPurchaseFields').classList.toggle('hidden',!isPurchase);if(isPurchase){const q=Number($('movementQty').value||0),c=Number($('movementUnitCost').value||0);$('movementPurchasePreview').textContent=`Coût de cet achat : ${fmtMoney(q*c)}`}}
 
 async function saveProduct(e){
   e.preventDefault();
@@ -145,21 +163,28 @@ async function saveProduct(e){
   $('productDialog').close();showToast('Produit enregistré');await loadData();
 }
 async function deleteCurrentProduct(){const id=$('productId').value;if(!id)return;const p=products.find(x=>x.id===id);if(!confirm(`Supprimer « ${p?.name||'ce produit'} » ?`))return;await del(PRODUCTS,id);$('productDialog').close();showToast('Produit supprimé');await loadData()}
-const movementLabels={receive:'Réception en réserve',open:'Réserve → en main',consume:'Consommation depuis en main',return:'En main → réserve',reservePlus:'Ajustement réserve +',reserveMinus:'Ajustement réserve −',handPlus:'Ajustement en main +',handMinus:'Ajustement en main −'};
+const movementLabels={receive:'Réception / Achat en réserve',open:'Réserve → en main',consume:'Consommation depuis en main',return:'En main → réserve',reservePlus:'Ajustement réserve +',reserveMinus:'Ajustement réserve −',handPlus:'Ajustement en main +',handMinus:'Ajustement en main −'};
 async function applyMovement(e){
   e.preventDefault();const p=products.find(x=>x.id===$('movementProductId').value);if(!p)return;
   const type=$('movementType').value,q=Number($('movementQty').value||0),note=$('movementNote').value.trim();if(q<=0)return;
-  let reserve=Number(p.reserveStock||0),hand=Number(p.inHandStock||0),sign='';
-  if(type==='receive'||type==='reservePlus'){reserve+=q;sign='+'}
+  let reserve=Number(p.reserveStock||0),hand=Number(p.inHandStock||0),sign='',meta={type};
+  if(type==='receive'){
+    const purchaseUnitCost=Number($('movementUnitCost').value||0);if(purchaseUnitCost<0)return showToast('Le coût ne peut pas être négatif');
+    const currentQty=reserve+hand,currentValue=currentQty*Number(p.unitCost||0),purchaseTotalCost=q*purchaseUnitCost,newQty=currentQty+q;
+    reserve+=q;sign='+';if(newQty>0)p.unitCost=(currentValue+purchaseTotalCost)/newQty;
+    meta={type:'receive',isPurchase:true,purchaseUnitCost,purchaseTotalCost};
+  }
+  if(type==='reservePlus'){reserve+=q;sign='+'}
   if(type==='reserveMinus'){if(q>reserve)return showToast('Quantité supérieure à la réserve');reserve-=q;sign='−'}
   if(type==='open'){if(q>reserve)return showToast('Pas assez en réserve');reserve-=q;hand+=q;sign='↔'}
   if(type==='consume'){if(q>hand)return showToast('Pas assez de produit “en main”');hand-=q;sign='−'}
   if(type==='return'){if(q>hand)return showToast('Pas assez de produit “en main”');hand-=q;reserve+=q;sign='↔'}
   if(type==='handPlus'){hand+=q;sign='+'}
   if(type==='handMinus'){if(q>hand)return showToast('Quantité supérieure au stock en main');hand-=q;sign='−'}
-  p.reserveStock=reserve;p.inHandStock=hand;p.updatedAt=nowIso();await put(PRODUCTS,p);await recordMovement(p,movementLabels[type],q,note,sign);$('movementDialog').close();showToast('Stock mis à jour');await loadData();
+  p.reserveStock=reserve;p.inHandStock=hand;p.updatedAt=nowIso();await put(PRODUCTS,p);await recordMovement(p,movementLabels[type],q,note,sign,meta);$('movementDialog').close();showToast(type==='receive'?`Achat enregistré : ${fmtMoney(meta.purchaseTotalCost)}`:'Stock mis à jour');await loadData();
 }
-async function recordMovement(p,label,qty,note,sign){await put(MOVEMENTS,{id:uid(),productId:p.id,productName:p.name,label,qty:Number(qty||0),note:note||'',sign:sign||'',unitCostAtTime:Number(p.unitCost||0),date:nowIso()})}
+async function recordMovement(p,label,qty,note,sign,meta={}){await put(MOVEMENTS,{id:uid(),productId:p.id,productName:p.name,label,qty:Number(qty||0),note:note||'',sign:sign||'',unitCostAtTime:Number(p.unitCost||0),date:nowIso(),...meta})}
+
 
 /* ---------- Photos ---------- */
 function fileToDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(file)})}
@@ -201,6 +226,9 @@ function renderStats(){
   $('statAvgUnitCost').textContent=fmtMoney(avgUnitCost);
   $('statHealth').textContent=`${healthy} %`;
   $('statMoves').textContent=periodMoves.length;
+  $('statPurchasesPeriod').textContent=fmtMoney(purchaseTotals(days).total);
+  $('statPurchasesMonth').textContent=fmtMoney(purchaseMonthTotals().total);
+  $('statPurchasesTotal').textContent=fmtMoney(purchaseTotals().total);
   $('usagePeriodLabel').textContent=`${days} jours`;
   $('costPeriodLabel').textContent=`${days} jours`;
 
@@ -221,107 +249,30 @@ function renderStats(){
 }
 
 /* ---------- Scanner UPC / EAN ---------- */
-const EAN_L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
-const EAN_G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
-const EAN_R=['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
-const EAN_PARITY=['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
-
-function hamming(a,b){let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])d++;return d}
-function nearestPattern(bits,patterns,maxErr=1){let best=-1,err=99;for(let i=0;i<patterns.length;i++){const e=hamming(bits,patterns[i]);if(e<err){err=e;best=i}}return err<=maxErr?{digit:best,err}:null}
-function validEan(code){
-  if(!/^\d+$/.test(code)||![8,12,13].includes(code.length))return false;
-  const digits=code.split('').map(Number),check=digits.pop();let sum=0;
-  for(let i=digits.length-1,pos=1;i>=0;i--,pos++)sum+=digits[i]*(pos%2?3:1);
-  return (10-(sum%10))%10===check;
-}
-function decodeModules(mod){
-  if(mod.length===95){
-    if(mod.slice(0,3).join('')!=='101'||mod.slice(45,50).join('')!=='01010'||mod.slice(92).join('')!=='101')return null;
-    let parity='',left='',right='',errors=0;
-    for(let i=0;i<6;i++){
-      const bits=mod.slice(3+i*7,10+i*7).join('');const l=nearestPattern(bits,EAN_L,1),g=nearestPattern(bits,EAN_G,1);let pick=null,type='';
-      if(l&&(!g||l.err<=g.err)){pick=l;type='L'}else if(g){pick=g;type='G'}else return null;
-      left+=pick.digit;parity+=type;errors+=pick.err;
-    }
-    const first=EAN_PARITY.indexOf(parity);if(first<0)return null;
-    for(let i=0;i<6;i++){const bits=mod.slice(50+i*7,57+i*7).join('');const r=nearestPattern(bits,EAN_R,1);if(!r)return null;right+=r.digit;errors+=r.err}
-    const code=String(first)+left+right;return errors<=5&&validEan(code)?code:null;
+async function ensureZXing(){
+  if(window.ZXingBrowser)return true;
+  const urls=['https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js','https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js'];
+  for(const url of urls){
+    try{await new Promise((resolve,reject)=>{const old=document.querySelector(`script[data-zxing="${url}"]`);if(old){old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return}const sc=document.createElement('script');sc.src=url;sc.dataset.zxing=url;sc.onload=resolve;sc.onerror=reject;document.head.appendChild(sc)});if(window.ZXingBrowser)return true}catch(e){}
   }
-  if(mod.length===67){
-    if(mod.slice(0,3).join('')!=='101'||mod.slice(31,36).join('')!=='01010'||mod.slice(64).join('')!=='101')return null;
-    let code='',errors=0;
-    for(let i=0;i<4;i++){const r=nearestPattern(mod.slice(3+i*7,10+i*7).join(''),EAN_L,1);if(!r)return null;code+=r.digit;errors+=r.err}
-    for(let i=0;i<4;i++){const r=nearestPattern(mod.slice(36+i*7,43+i*7).join(''),EAN_R,1);if(!r)return null;code+=r.digit;errors+=r.err}
-    return errors<=4&&validEan(code)?code:null;
-  }
-  return null;
+  return false;
 }
-function runsFromBits(bits){const runs=[];let color=bits[0],start=0;for(let i=1;i<=bits.length;i++){if(i===bits.length||bits[i]!==color){runs.push({color,start,end:i-1,len:i-start});if(i<bits.length){color=bits[i];start=i}}}return runs}
-function sampleModules(bits,start,end,count){const out=[];const width=end-start+1;for(let k=0;k<count;k++){const center=start+(k+.5)*width/count;let ones=0,total=0;const rad=Math.max(1,Math.floor(width/count*.18));for(let x=Math.max(start,Math.floor(center-rad));x<=Math.min(end,Math.ceil(center+rad));x++){ones+=bits[x];total++}out.push(ones>=total/2?1:0)}return out}
-function decodeBinaryLine(bits){
-  const runs=runsFromBits(bits);if(runs.length<30)return null;
-  for(const moduleCount of [95,67]){
-    for(let i=1;i<runs.length-6;i++){
-      const a=runs[i],b=runs[i+1],c=runs[i+2],quietL=runs[i-1];
-      if(a.color!==1||b.color!==0||c.color!==1||quietL.color!==0)continue;
-      const sm=(a.len+b.len+c.len)/3;if(sm<1.2||quietL.len<sm*2.5)continue;
-      if(Math.max(a.len,b.len,c.len)>Math.min(a.len,b.len,c.len)*2.4)continue;
-      const expectedRuns=moduleCount===95?50:34;
-      for(let j=Math.max(i+expectedRuns-14,i+8);j<Math.min(runs.length-3,i+expectedRuns+18);j++){
-        const x=runs[j],y=runs[j+1],z=runs[j+2],quietR=runs[j+3];
-        if(x.color!==1||y.color!==0||z.color!==1||quietR.color!==0)continue;
-        const totalWidth=z.end-a.start+1,module=totalWidth/moduleCount;if(module<1)continue;
-        const guardLens=[a.len,b.len,c.len,x.len,y.len,z.len];if(guardLens.some(v=>v<module*.35||v>module*2.2))continue;
-        if(quietR.len<module*2)continue;
-        const mod=sampleModules(bits,a.start,z.end,moduleCount);const code=decodeModules(mod);if(code)return code;
-      }
-    }
-  }
-  return null;
-}
-function decodeVideoFrame(video){
-  const canvas=$('scannerCanvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
-  const vw=video.videoWidth||0,vh=video.videoHeight||0;if(!vw||!vh)return null;
-  const w=Math.min(720,vw),h=Math.max(1,Math.round(vh*(w/vw)));canvas.width=w;canvas.height=h;ctx.drawImage(video,0,0,w,h);
-  for(const ratio of [.38,.44,.5,.56,.62]){
-    const y=Math.max(0,Math.min(h-1,Math.round(h*ratio))),data=ctx.getImageData(0,y,w,1).data,gray=new Array(w);let min=255,max=0;
-    for(let x=0;x<w;x++){const o=x*4,g=Math.round(data[o]*.299+data[o+1]*.587+data[o+2]*.114);gray[x]=g;if(g<min)min=g;if(g>max)max=g}
-    if(max-min<55)continue;const threshold=min+(max-min)*.48,bits=gray.map(g=>g<threshold?1:0);
-    // Petit filtre majoritaire pour réduire le bruit caméra.
-    const clean=bits.slice();for(let x=2;x<w-2;x++){const s=bits[x-2]+bits[x-1]+bits[x]+bits[x+1]+bits[x+2];clean[x]=s>=3?1:0}
-    const code=decodeBinaryLine(clean);if(code)return code;
-  }
-  return null;
-}
-async function getNativeBarcode(video){
-  if(!('BarcodeDetector' in window))return null;
-  try{
-    if(!barcodeDetector){const supported=await BarcodeDetector.getSupportedFormats?.()||[];const wanted=['ean_13','ean_8','upc_a','upc_e'].filter(f=>supported.includes(f));if(!wanted.length)return null;barcodeDetector=new BarcodeDetector({formats:wanted})}
-    const result=await barcodeDetector.detect(video);if(result?.length){const code=normalizeBarcode(result[0].rawValue);if(code.length>=8)return code}
-  }catch(e){}
-  return null;
-}
-async function scanFrame(){
-  if(!scannerStream||!$('scannerDialog').open)return;
-  try{
-    const video=$('scannerVideo');let code=await getNativeBarcode(video);if(!code)code=decodeVideoFrame(video);if(code){handleScanDetected(code);return}
-  }catch(e){console.debug('scan frame',e)}
-  scannerTimer=setTimeout(scanFrame,190);
-}
+function stopScanner(){try{scannerControls?.stop()}catch(e){}scannerControls=null;scannerReader=null;const video=$('scannerVideo');if(video?.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null}}
 async function startScanner(){
-  stopScanner();scanLastCode='';$('scanResult').classList.add('hidden');$('scannerStatus').textContent='Place le code-barres horizontalement dans le cadre.';
-  if(!navigator.mediaDevices?.getUserMedia){$('scannerStatus').textContent='La caméra web n’est pas disponible. Entre le code manuellement ci-dessous.';return}
+  stopScanner();scanLastCode='';$('scanResult').classList.add('hidden');$('scannerStatus').textContent='Démarrage de la caméra…';
+  if(!window.isSecureContext){$('scannerStatus').textContent='La caméra nécessite une adresse HTTPS. Ouvre l’app depuis GitHub Pages.';return}
+  if(!navigator.mediaDevices?.getUserMedia){$('scannerStatus').textContent='Caméra non disponible. Utilise « Photo du code » ou entre le code manuellement.';return}
+  if(!(await ensureZXing())){$('scannerStatus').textContent='Le moteur du scanner n’a pas pu se charger. Vérifie Internet ou utilise le code manuel.';return}
   try{
-    scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
-    const video=$('scannerVideo');video.srcObject=scannerStream;await video.play();$('scannerStatus').textContent='Caméra active — garde le code immobile et bien éclairé.';scannerTimer=setTimeout(scanFrame,250);
-  }catch(e){console.error(e);$('scannerStatus').textContent='Accès caméra refusé ou indisponible. Autorise la caméra dans Safari ou entre le code manuellement.'}
+    scannerReader=new ZXingBrowser.BrowserMultiFormatReader();
+    scannerControls=await scannerReader.decodeFromConstraints({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}},$('scannerVideo'),(result,error,controls)=>{
+      if(result){const code=normalizeBarcode(result.getText?result.getText():String(result.text||result));if(code){try{controls.stop()}catch(e){}handleScanDetected(code)}}
+    });
+    $('scannerStatus').textContent='Caméra active — place le code UPC/EAN dans le cadre.';
+  }catch(e){console.error(e);$('scannerStatus').textContent='Impossible d’ouvrir la caméra. Autorise la caméra pour ce site ou utilise « Photo du code ».'}
 }
-function stopScanner(){if(scannerTimer){clearTimeout(scannerTimer);scannerTimer=null}if(scannerStream){scannerStream.getTracks().forEach(t=>t.stop());scannerStream=null}const video=$('scannerVideo');if(video)video.srcObject=null}
 function handleScanDetected(code){scanLastCode=normalizeBarcode(code);if(!scanLastCode)return;stopScanner();$('scanCodeText').textContent=scanLastCode;$('scanResult').classList.remove('hidden');$('scannerStatus').textContent='Code détecté ✓';if(navigator.vibrate)navigator.vibrate(80)}
-function openScanner(target='standalone'){
-  scannerTarget=target;scanLastCode='';$('manualBarcode').value='';$('scanResult').classList.add('hidden');
-  if(!$('scannerDialog').open)$('scannerDialog').showModal();startScanner();
-}
+function openScanner(target='standalone'){scannerTarget=target;scanLastCode='';$('manualBarcode').value='';$('scanResult').classList.add('hidden');if(!$('scannerDialog').open)$('scannerDialog').showModal();startScanner()}
 function closeScanner(){stopScanner();if($('scannerDialog').open)$('scannerDialog').close()}
 function useManualCode(){const code=normalizeBarcode($('manualBarcode').value);if(code.length<8)return showToast('Entre au moins 8 chiffres');handleScanDetected(code)}
 function useScannedCode(){
@@ -332,6 +283,14 @@ function useScannedCode(){
   openProduct();$('barcode').value=code;$('supplier').value='Amazon Business';$('productName').placeholder='Nom du produit trouvé sur Amazon';showToast('Nouveau code ajouté');
 }
 function searchScannedOnAmazon(){const code=scanLastCode||normalizeBarcode($('manualBarcode').value);if(!code)return showToast('Aucun code détecté');openExternal(amazonSearchUrl(code))}
+async function decodeBarcodePhoto(file){
+  if(!file)return;$('scannerStatus').textContent='Lecture de la photo…';
+  if(!(await ensureZXing())){$('scannerStatus').textContent='Moteur de lecture indisponible.';return}
+  try{
+    const data=await fileToDataUrl(file),img=$('barcodeDecodeImage');img.src=data;await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});
+    const reader=new ZXingBrowser.BrowserMultiFormatReader(),result=await reader.decodeFromImageElement(img);handleScanDetected(result.getText());
+  }catch(e){console.error(e);$('scannerStatus').textContent='Aucun code lisible sur cette photo. Cadre le code de plus près et réessaie.'}
+}
 
 /* ---------- PDF local sans service externe ---------- */
 function padText(value,width){let s=String(value??'');if(s.length>width)s=s.slice(0,Math.max(1,width-1))+'…';return s.padEnd(width,' ')}
@@ -357,8 +316,8 @@ function buildPdfBytes(pages){
   const bytes=new Uint8Array(pdf.length);for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;return bytes;
 }
 function exportPdf(ordersOnly=false){
-  const date=new Date(),orderList=products.filter(p=>toOrder(p)>0).sort(prioritySort),reserveValue=products.reduce((s,p)=>s+Number(p.reserveStock||0)*Number(p.unitCost||0),0),totalValue=products.reduce((s,p)=>s+totalAvailable(p)*Number(p.unitCost||0),0),budget=orderList.reduce((s,p)=>s+toOrder(p)*Number(p.unitCost||0),0);
-  const lines=[];lines.push('INVENTAIRE PRO - RAPPORT',`Genere le ${date.toLocaleString('fr-CA')}`,'='.repeat(82),'RESUME',`Produits: ${products.length}`,`Valeur reserve: ${fmtMoney(reserveValue)}   Valeur totale reserve + en main: ${fmtMoney(totalValue)}`,`Articles a commander: ${orderList.length}   Budget estime: ${fmtMoney(budget)}`,'');
+  const date=new Date(),orderList=products.filter(p=>toOrder(p)>0).sort(prioritySort),reserveValue=products.reduce((s,p)=>s+Number(p.reserveStock||0)*Number(p.unitCost||0),0),totalValue=products.reduce((s,p)=>s+totalAvailable(p)*Number(p.unitCost||0),0),budget=orderList.reduce((s,p)=>s+toOrder(p)*Number(p.unitCost||0),0),pMonth=purchaseMonthTotals(),pAll=purchaseTotals();
+  const lines=[];lines.push('INVENTAIRE PRO - RAPPORT',`Genere le ${date.toLocaleString('fr-CA')}`,'='.repeat(82),'RESUME',`Produits: ${products.length}`,`Valeur reserve: ${fmtMoney(reserveValue)}   Valeur totale reserve + en main: ${fmtMoney(totalValue)}`,`Articles a commander: ${orderList.length}   Budget estime: ${fmtMoney(budget)}`,`Achats ce mois: ${fmtMoney(pMonth.total)}   Achats enregistres: ${fmtMoney(pAll.total)}`,'');
   lines.push('A COMMANDER','-'.repeat(82),`${padText('Produit',31)} ${padText('Res.',7)} ${padText('Min.',7)} ${padText('Cible',7)} ${padText('Qte',7)} ${padText('Cout',14)}`);
   if(!orderList.length)lines.push('Aucun produit a commander.');
   for(const p of orderList)lines.push(`${padText(p.name,31)} ${padText(fmtQty(p.reserveStock),7)} ${padText(fmtQty(p.minReserve),7)} ${padText(fmtQty(targetOf(p)),7)} ${padText(fmtQty(toOrder(p)),7)} ${padText(fmtMoney(toOrder(p)*Number(p.unitCost||0)),14)}`);
@@ -375,7 +334,7 @@ function navigate(view){document.querySelectorAll('.view').forEach(v=>v.classLis
 function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200)}
 function downloadBlob(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1200)}
 function downloadBytes(name,bytes,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytes],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
-async function exportBackup(){const data={app:'Inventaire Pro',version:2,exportedAt:nowIso(),products,movements};downloadBlob(`inventaire-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data,null,2),'application/json');showToast('Sauvegarde exportée')}
+async function exportBackup(){const data={app:'Inventaire Pro',version:3.1,exportedAt:nowIso(),products,movements};downloadBlob(`inventaire-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data,null,2),'application/json');showToast('Sauvegarde exportée')}
 async function importBackup(file){try{const data=JSON.parse(await file.text());if(!Array.isArray(data.products)||!Array.isArray(data.movements))throw new Error();if(!confirm(`Importer ${data.products.length} produits ? Les données actuelles seront remplacées.`))return;await clearStore(PRODUCTS);await clearStore(MOVEMENTS);for(const p of data.products)await put(PRODUCTS,p);for(const m of data.movements)await put(MOVEMENTS,m);await loadData();showToast('Sauvegarde importée')}catch(e){console.error(e);showToast('Fichier de sauvegarde invalide')}}
 function exportCsv(){const header=['Produit','Code-barres','Catégorie','Unité','Réserve','En main','Minimum réserve','Stock cible','À commander','Coût unitaire','Fournisseur','Emplacement','Lien produit','Notes'];const rows=products.map(p=>[p.name,p.barcode||'',p.category,p.unit,p.reserveStock,p.inHandStock,p.minReserve,targetOf(p),toOrder(p),p.unitCost,p.supplier,p.location,p.productUrl,p.notes]);const csv=[header,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');downloadBlob(`inventaire-${new Date().toISOString().slice(0,10)}.csv`,`\ufeff${csv}`,'text/csv;charset=utf-8');showToast('CSV exporté')}
 async function seedExamples(){if(products.length&&!confirm('Ajouter les exemples à ton inventaire actuel ?'))return;const samples=[
@@ -393,14 +352,15 @@ function setupEvents(){
   $('scanTopBtn').onclick=()=>openScanner('standalone');$('dashboardScanBtn').onclick=()=>openScanner('standalone');$('inventoryScanBtn').onclick=()=>openScanner('standalone');
   $('dashboardPdfBtn').onclick=()=>exportPdf(false);$('ordersPdfBtn').onclick=()=>exportPdf(true);$('exportPdfBtn').onclick=()=>exportPdf(false);
   $('productForm').addEventListener('submit',saveProduct);$('movementForm').addEventListener('submit',applyMovement);$('deleteProductBtn').onclick=deleteCurrentProduct;
-  ['reserveStock','inHandStock','minReserve','targetReserve'].forEach(id=>$(id).addEventListener('input',updateFormulaPreview));
+  $('movementType').addEventListener('change',updateMovementPurchaseFields);$('movementQty').addEventListener('input',updateMovementPurchaseFields);$('movementUnitCost').addEventListener('input',updateMovementPurchaseFields);
+  ['reserveStock','inHandStock','minReserve','targetReserve','unitCost'].forEach(id=>$(id).addEventListener('input',updateFormulaPreview));
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
   $('searchInput').addEventListener('input',renderInventory);$('categoryFilter').addEventListener('change',renderInventory);$('statsPeriod').addEventListener('change',renderStats);
   $('exportBtn').onclick=exportBackup;$('exportCsvBtn').onclick=exportCsv;$('seedBtn').onclick=seedExamples;$('clearBtn').onclick=clearEverything;
   $('importInput').addEventListener('change',e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value=''});
-  $('productPhotoInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('removePhotoBtn').onclick=()=>{tempPhotoData='';updatePhotoPreview()};
+  $('photoLibraryInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('photoCameraInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('removePhotoBtn').onclick=()=>{tempPhotoData='';updatePhotoPreview()};
   $('barcode').addEventListener('input',e=>e.target.value=normalizeBarcode(e.target.value));$('scanFromFormBtn').onclick=()=>openScanner('form');$('amazonSearchFormBtn').onclick=amazonSearchFromForm;
-  $('scannerCloseBtn').onclick=closeScanner;$('scannerDialog').addEventListener('close',stopScanner);$('manualCodeBtn').onclick=useManualCode;$('scanUseBtn').onclick=useScannedCode;$('scanAmazonBtn').onclick=searchScannedOnAmazon;
+  $('scannerCloseBtn').onclick=closeScanner;$('scannerDialog').addEventListener('close',stopScanner);$('manualCodeBtn').onclick=useManualCode;$('scanUseBtn').onclick=useScannedCode;$('scanAmazonBtn').onclick=searchScannedOnAmazon;$('retryScannerBtn').onclick=startScanner;$('barcodeImageInput').addEventListener('change',e=>{if(e.target.files[0])decodeBarcodePhoto(e.target.files[0]);e.target.value=''});
   $('manualBarcode').addEventListener('input',e=>e.target.value=normalizeBarcode(e.target.value));$('manualBarcode').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();useManualCode()}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopScanner()});
 }

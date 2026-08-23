@@ -1,21 +1,27 @@
-INVENTAIRE PRO 3.1 — BASE V3 + AMÉLIORATIONS
+INVENTAIRE PRO 3.2 — GRAPHIQUES AVANCÉS
 
-Cette version conserve les fonctions de la v3 d'origine et ajoute :
-- suivi réel des achats/réceptions;
-- coût payé par unité et coût total de chaque achat;
-- coût moyen automatique du produit lors d'une nouvelle réception;
-- achats de la période, du mois et total dans les statistiques;
-- historique des achats séparé;
-- choix d'une photo depuis la photothèque de l'iPhone;
-- prise de photo directe;
-- scanner UPC/EAN basé sur ZXing;
-- option Photo du code si la caméra en direct a de la difficulté.
+Base : v3.1 améliorée. Toutes les fonctions précédentes sont conservées.
 
-RÈGLE DES ACHATS
-- Mouvement > Réception / Achat : compte comme achat/dépense.
-- Ajustement + : ne compte pas comme achat.
-- Modifier un produit : ne compte pas comme achat.
-- Stock initial lors de la création : ne compte pas comme achat.
+NOUVEAUTÉS STATS
+- graphique Achats dans le temps;
+- graphique Consommation de chaque produit;
+- graphique Coût des produits consommés;
+- graphique Mouvements de stock : ajouts vs retraits;
+- graphique Valeur de l’inventaire dans le temps;
+- graphique Achats VS consommation en dollars;
+- graphique Valeur actuelle par catégorie;
+- graphique Santé du stock;
+- filtre global 7 jours / 30 jours / 3 mois / 6 mois / 1 an / Tout;
+- filtre Top 5 / Top 10 / Tous pour les graphiques par produit.
+
+FIABILITÉ DE L’HISTORIQUE
+- Réception / Achat = achat + ajout de stock.
+- Ajustement + / - = mouvement de stock, jamais un achat.
+- Modifier directement une quantité crée maintenant automatiquement un mouvement d’ajustement, jamais un achat.
+- Créer un produit avec du stock initial crée un mouvement « stock initial », jamais un achat.
+- Modifier le coût unitaire journalise la variation de valeur pour améliorer le graphique de valeur d’inventaire.
+
+Les données historiques plus anciennes restent compatibles. Certaines anciennes modifications directes qui n’étaient pas journalisées peuvent rendre le début du graphique de valeur approximatif.
 
 Avant la mise à jour, exporter une sauvegarde JSON depuis Réglages.
 Pour GitHub Pages, remplacer les anciens fichiers à la racine du dépôt par les fichiers de ce ZIP.

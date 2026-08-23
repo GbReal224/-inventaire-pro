@@ -159,7 +159,29 @@ async function saveProduct(e){
     unitCost:Number($('unitCost').value||0),supplier:$('supplier').value.trim(),location:$('location').value.trim(),productUrl:$('productUrl').value.trim(),notes:$('notes').value.trim(),photoData:tempPhotoData||'',
     createdAt:old?.createdAt||nowIso(),updatedAt:nowIso()
   };
-  await put(PRODUCTS,p);if(!old){await recordMovement(p,'Création du produit',0,'','')}
+  await put(PRODUCTS,p);
+  if(!old){
+    const initialTotal=totalAvailable(p);
+    await recordMovement(p,'Création du produit',initialTotal,'','',{
+      type:'initial',sign:initialTotal>0?'+':'',unitCostAtTime:Number(p.unitCost||0),inventoryValueDelta:initialTotal*Number(p.unitCost||0),stockAfterTotal:initialTotal
+    });
+  }else{
+    const oldCost=Number(old.unitCost||0),newCost=Number(p.unitCost||0);
+    const reserveDelta=Number(p.reserveStock||0)-Number(old.reserveStock||0);
+    const handDelta=Number(p.inHandStock||0)-Number(old.inHandStock||0);
+    if(reserveDelta!==0)await recordMovement(p,reserveDelta>0?'Ajustement réserve + via modification':'Ajustement réserve − via modification',Math.abs(reserveDelta),'',reserveDelta>0?'+':'−',{
+      type:reserveDelta>0?'reservePlus':'reserveMinus',unitCostAtTime:oldCost,inventoryValueDelta:reserveDelta*oldCost,stockAfterTotal:totalAvailable(p)
+    });
+    if(handDelta!==0)await recordMovement(p,handDelta>0?'Ajustement en main + via modification':'Ajustement en main − via modification',Math.abs(handDelta),'',handDelta>0?'+':'−',{
+      type:handDelta>0?'handPlus':'handMinus',unitCostAtTime:oldCost,inventoryValueDelta:handDelta*oldCost,stockAfterTotal:totalAvailable(p)
+    });
+    if(newCost!==oldCost){
+      const qtyNow=totalAvailable(p),valueDelta=qtyNow*(newCost-oldCost);
+      await recordMovement(p,'Mise à jour du coût unitaire',0,`${fmtMoney(oldCost)} → ${fmtMoney(newCost)}`,'↕',{
+        type:'costChange',unitCostAtTime:newCost,previousUnitCost:oldCost,inventoryValueDelta:valueDelta,stockAfterTotal:qtyNow
+      });
+    }
+  }
   $('productDialog').close();showToast('Produit enregistré');await loadData();
 }
 async function deleteCurrentProduct(){const id=$('productId').value;if(!id)return;const p=products.find(x=>x.id===id);if(!confirm(`Supprimer « ${p?.name||'ce produit'} » ?`))return;await del(PRODUCTS,id);$('productDialog').close();showToast('Produit supprimé');await loadData()}
@@ -168,20 +190,22 @@ async function applyMovement(e){
   e.preventDefault();const p=products.find(x=>x.id===$('movementProductId').value);if(!p)return;
   const type=$('movementType').value,q=Number($('movementQty').value||0),note=$('movementNote').value.trim();if(q<=0)return;
   let reserve=Number(p.reserveStock||0),hand=Number(p.inHandStock||0),sign='',meta={type};
+  const unitCostBefore=Number(p.unitCost||0);
   if(type==='receive'){
     const purchaseUnitCost=Number($('movementUnitCost').value||0);if(purchaseUnitCost<0)return showToast('Le coût ne peut pas être négatif');
-    const currentQty=reserve+hand,currentValue=currentQty*Number(p.unitCost||0),purchaseTotalCost=q*purchaseUnitCost,newQty=currentQty+q;
+    const currentQty=reserve+hand,currentValue=currentQty*unitCostBefore,purchaseTotalCost=q*purchaseUnitCost,newQty=currentQty+q;
     reserve+=q;sign='+';if(newQty>0)p.unitCost=(currentValue+purchaseTotalCost)/newQty;
-    meta={type:'receive',isPurchase:true,purchaseUnitCost,purchaseTotalCost};
+    meta={type:'receive',isPurchase:true,purchaseUnitCost,purchaseTotalCost,previousUnitCost:unitCostBefore,inventoryValueDelta:purchaseTotalCost};
   }
-  if(type==='reservePlus'){reserve+=q;sign='+'}
-  if(type==='reserveMinus'){if(q>reserve)return showToast('Quantité supérieure à la réserve');reserve-=q;sign='−'}
-  if(type==='open'){if(q>reserve)return showToast('Pas assez en réserve');reserve-=q;hand+=q;sign='↔'}
-  if(type==='consume'){if(q>hand)return showToast('Pas assez de produit “en main”');hand-=q;sign='−'}
-  if(type==='return'){if(q>hand)return showToast('Pas assez de produit “en main”');hand-=q;reserve+=q;sign='↔'}
-  if(type==='handPlus'){hand+=q;sign='+'}
-  if(type==='handMinus'){if(q>hand)return showToast('Quantité supérieure au stock en main');hand-=q;sign='−'}
-  p.reserveStock=reserve;p.inHandStock=hand;p.updatedAt=nowIso();await put(PRODUCTS,p);await recordMovement(p,movementLabels[type],q,note,sign,meta);$('movementDialog').close();showToast(type==='receive'?`Achat enregistré : ${fmtMoney(meta.purchaseTotalCost)}`:'Stock mis à jour');await loadData();
+  if(type==='reservePlus'){reserve+=q;sign='+';meta.inventoryValueDelta=q*unitCostBefore}
+  if(type==='reserveMinus'){if(q>reserve)return showToast('Quantité supérieure à la réserve');reserve-=q;sign='−';meta.inventoryValueDelta=-q*unitCostBefore}
+  if(type==='open'){if(q>reserve)return showToast('Pas assez en réserve');reserve-=q;hand+=q;sign='↔';meta.inventoryValueDelta=0}
+  if(type==='consume'){if(q>hand)return showToast('Pas assez de produit “en main”');hand-=q;sign='−';meta.inventoryValueDelta=-q*unitCostBefore}
+  if(type==='return'){if(q>hand)return showToast('Pas assez de produit “en main”');hand-=q;reserve+=q;sign='↔';meta.inventoryValueDelta=0}
+  if(type==='handPlus'){hand+=q;sign='+';meta.inventoryValueDelta=q*unitCostBefore}
+  if(type==='handMinus'){if(q>hand)return showToast('Quantité supérieure au stock en main');hand-=q;sign='−';meta.inventoryValueDelta=-q*unitCostBefore}
+  p.reserveStock=reserve;p.inHandStock=hand;p.updatedAt=nowIso();meta.stockAfterTotal=reserve+hand;
+  await put(PRODUCTS,p);await recordMovement(p,movementLabels[type],q,note,sign,meta);$('movementDialog').close();showToast(type==='receive'?`Achat enregistré : ${fmtMoney(meta.purchaseTotalCost)}`:'Stock mis à jour');await loadData();
 }
 async function recordMovement(p,label,qty,note,sign,meta={}){await put(MOVEMENTS,{id:uid(),productId:p.id,productName:p.name,label,qty:Number(qty||0),note:note||'',sign:sign||'',unitCostAtTime:Number(p.unitCost||0),date:nowIso(),...meta})}
 
@@ -202,50 +226,85 @@ async function handlePhoto(file){try{showToast('Préparation de la photo…');te
 /* ---------- Amazon ---------- */
 function amazonSearchFromForm(){const term=normalizeBarcode($('barcode').value)||$('productName').value.trim();if(!term)return showToast('Scanne un code ou entre un nom de produit');openExternal(amazonSearchUrl(term))}
 
-/* ---------- Statistiques ---------- */
-function movesWithin(days){const since=Date.now()-Number(days)*86400000;return movements.filter(m=>new Date(m.date).getTime()>=since)}
-function isConsumption(m){return /Consommation depuis en main/i.test(String(m.label||''))}
+/* ---------- Statistiques & graphiques ---------- */
+function statsDays(){return Number($('statsPeriod')?.value||30)}
+function statsTopLimit(){return Number($('statsTopLimit')?.value||10)}
+function periodStart(days){
+  if(days>0)return new Date(Date.now()-days*86400000);
+  const dated=movements.map(m=>new Date(m.date)).filter(d=>!Number.isNaN(d.getTime())).sort((a,b)=>a-b);
+  return dated[0]||new Date(Date.now()-30*86400000);
+}
+function periodLabel(days){return days===0?'Tout l’historique':days===7?'7 jours':days===30?'30 jours':days===90?'3 mois':days===180?'6 mois':days===365?'1 an':`${days} jours`}
+function movesWithin(days){if(Number(days)===0)return [...movements];const since=Date.now()-Number(days)*86400000;return movements.filter(m=>new Date(m.date).getTime()>=since)}
+function isConsumption(m){return m?.type==='consume'||/Consommation depuis en main/i.test(String(m.label||''))}
 function consumptionMap(days){const map=new Map();for(const m of movesWithin(days).filter(isConsumption))map.set(m.productId,(map.get(m.productId)||0)+Number(m.qty||0));return map}
 function consumptionCostMap(days){const map=new Map();for(const m of movesWithin(days).filter(isConsumption)){const p=products.find(x=>x.id===m.productId);const cost=m.unitCostAtTime!=null?Number(m.unitCostAtTime||0):Number(p?.unitCost||0);map.set(m.productId,(map.get(m.productId)||0)+Number(m.qty||0)*cost)}return map}
+function movementDirection(m){
+  const t=String(m.type||'');if(['receive','reservePlus','handPlus','initial'].includes(t))return 'add';if(['reserveMinus','handMinus','consume'].includes(t))return 'remove';if(['open','return','costChange'].includes(t))return 'neutral';
+  const l=String(m.label||'');if(/Réception|Ajustement réserve \+|Ajustement en main \+|Stock initial/i.test(l))return 'add';if(/Consommation|Ajustement réserve [−-]|Ajustement en main [−-]/i.test(l))return 'remove';return 'neutral';
+}
+function movementInventoryDelta(m){
+  if(Number.isFinite(Number(m.inventoryValueDelta)))return Number(m.inventoryValueDelta);
+  if(isPurchaseMovement(m))return Number(m.purchaseTotalCost||0);
+  const dir=movementDirection(m),cost=Number(m.unitCostAtTime||0),qty=Number(m.qty||0);return dir==='add'?qty*cost:dir==='remove'?-qty*cost:0;
+}
+function bucketMode(days,start){const span=days===0?Math.max(1,(Date.now()-start.getTime())/86400000):days;return span<=45?'day':span<=210?'week':'month'}
+function bucketKey(date,mode){
+  const d=new Date(date);if(mode==='month')return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  if(mode==='week'){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const dow=(x.getDay()+6)%7;x.setDate(x.getDate()-dow);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`}
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function bucketDateFromKey(key){const [y,m,d='1']=key.split('-').map(Number);return new Date(y,m-1,d)}
+function formatBucketLabel(key,mode){const d=bucketDateFromKey(key);return mode==='month'?d.toLocaleDateString('fr-CA',{month:'short',year:'2-digit'}):mode==='week'?d.toLocaleDateString('fr-CA',{day:'numeric',month:'short'}):d.toLocaleDateString('fr-CA',{day:'numeric',month:'short'})}
+function bucketRange(days){
+  const start=periodStart(days),mode=bucketMode(days,start),end=new Date(),keys=[];let d=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+  if(mode==='week'){const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow)}if(mode==='month')d=new Date(d.getFullYear(),d.getMonth(),1);
+  let guard=0;while(d<=end&&guard<1000){keys.push(bucketKey(d,mode));d=mode==='day'?new Date(d.getFullYear(),d.getMonth(),d.getDate()+1):mode==='week'?new Date(d.getFullYear(),d.getMonth(),d.getDate()+7):new Date(d.getFullYear(),d.getMonth()+1,1);guard++}
+  if(!keys.length)keys.push(bucketKey(end,mode));return {start,mode,keys};
+}
+function aggregateSeries(days,extractor){const range=bucketRange(days),map=new Map(range.keys.map(k=>[k,{}]));for(const m of movesWithin(days)){const k=bucketKey(new Date(m.date),range.mode);if(!map.has(k))continue;extractor(m,map.get(k))}return {mode:range.mode,start:range.start,rows:range.keys.map(k=>({key:k,label:formatBucketLabel(k,range.mode),...map.get(k)}))}}
+function compactNumber(v,money=false){return new Intl.NumberFormat('fr-CA',{notation:'compact',maximumFractionDigits:1,style:money?'currency':'decimal',currency:money?'CAD':undefined}).format(Number(v||0))}
+function svgEscape(v=''){return escapeHtml(v)}
+function renderLineChart(id,rows,series,{money=false,integer=false}={}){
+  const el=$(id);if(!el)return;const hasData=rows.some(r=>series.some(s=>Number(r[s.key]||0)!==0));if(!rows.length||!hasData){el.innerHTML='<div class="empty chart-empty">Pas encore assez de données pour afficher ce graphique.</div>';return}
+  const W=760,H=250,L=58,R=18,T=22,B=48,plotW=W-L-R,plotH=H-T-B;
+  const vals=rows.flatMap(r=>series.map(s=>Number(r[s.key]||0)));let min=0,max=Math.max(...vals,0);if(max<=0)max=1;
+  const y=v=>T+plotH-(Number(v||0)-min)/(max-min||1)*plotH;const x=i=>L+(rows.length===1?plotW/2:i*plotW/Math.max(1,rows.length-1));
+  const grid=[0,.25,.5,.75,1].map(fr=>{const val=max*(1-fr),yy=T+plotH*fr;return `<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" class="chart-grid-line"/><text x="${L-8}" y="${yy+4}" text-anchor="end" class="chart-axis-text">${svgEscape(money?compactNumber(val,true):integer?Math.round(val):compactNumber(val))}</text>`}).join('');
+  const maxLabels=5,labelIdx=new Set();for(let i=0;i<Math.min(maxLabels,rows.length);i++)labelIdx.add(Math.round(i*(rows.length-1)/Math.max(1,Math.min(maxLabels,rows.length)-1)));const xlabels=[...labelIdx].map(i=>`<text x="${x(i)}" y="${H-16}" text-anchor="middle" class="chart-axis-text">${svgEscape(rows[i].label)}</text>`).join('');
+  const paths=series.map((s,si)=>{const pts=rows.map((r,i)=>`${x(i)},${y(r[s.key])}`).join(' ');const circles=rows.map((r,i)=>`<circle cx="${x(i)}" cy="${y(r[s.key])}" r="3" class="chart-dot series-${si+1}"><title>${svgEscape(r.label)} — ${svgEscape(s.label)}: ${svgEscape(money?fmtMoney(r[s.key]):integer?fmtQty(r[s.key]):String(r[s.key]||0))}</title></circle>`).join('');return `<polyline points="${pts}" class="chart-line series-${si+1}"/>${circles}`}).join('');
+  const legend=series.map((s,si)=>`<span><i class="legend-line series-${si+1}"></i>${escapeHtml(s.label)}</span>`).join('');
+  el.innerHTML=`<div class="chart-legend">${legend}</div><div class="chart-scroll"><svg class="trend-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(series.map(s=>s.label).join(' et '))}">${grid}${xlabels}${paths}</svg></div>`;
+}
+function renderBars(id,rows,valueKey,{money=false,unitKey='unit'}={}){
+  const el=$(id);if(!el)return;const max=Math.max(1,...rows.map(r=>Number(r[valueKey]||0)));el.innerHTML=rows.length?rows.map(r=>`<div class="bar-row"><div class="bar-label" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,Number(r[valueKey]||0)/max*100)}%"></div></div><div class="bar-value">${money?fmtMoney(r[valueKey]):`${fmtQty(r[valueKey])}${r[unitKey]?' '+escapeHtml(r[unitKey]):''}`}</div></div>`).join(''):'<div class="empty">Aucune donnée pendant cette période.</div>';
+}
+function renderHealthChart(){
+  const counts={ok:0,watch:0,order:0,out:0};for(const p of products)counts[statusOf(p).key]=(counts[statusOf(p).key]||0)+1;const total=Math.max(1,products.length);
+  const parts=[['ok','OK'],['watch','À surveiller'],['order','Commander'],['out','Rupture']];$('stockHealthChart').innerHTML=products.length?`<div class="health-stack">${parts.map(([k])=>counts[k]?`<span class="health-segment ${k}" style="width:${counts[k]/total*100}%" title="${counts[k]} produit(s)"></span>`:'').join('')}</div><div class="health-legend">${parts.map(([k,l])=>`<span><i class="dot ${k}"></i>${l}<b>${counts[k]}</b></span>`).join('')}</div>`:'<div class="empty">Aucun produit.</div>';
+}
 function renderStats(){
   if(!$('statsPeriod'))return;
-  const days=Number($('statsPeriod').value||30),periodMoves=movesWithin(days),usage=consumptionMap(days),usageCosts=consumptionCostMap(days);
-  const reserveCost=products.reduce((s,p)=>s+Number(p.reserveStock||0)*Number(p.unitCost||0),0);
-  const inHandCost=products.reduce((s,p)=>s+Number(p.inHandStock||0)*Number(p.unitCost||0),0);
-  const totalValue=reserveCost+inHandCost;
-  const orderBudget=products.reduce((s,p)=>s+toOrder(p)*Number(p.unitCost||0),0);
-  const pricedProducts=products.filter(p=>Number(p.unitCost||0)>0);
-  const avgUnitCost=pricedProducts.length?pricedProducts.reduce((s,p)=>s+Number(p.unitCost||0),0)/pricedProducts.length:0;
-  const consumedCost=[...usageCosts.values()].reduce((sum,cost)=>sum+Number(cost||0),0);
-  const healthy=products.length?Math.round(products.filter(p=>statusOf(p).key==='ok').length/products.length*100):0;
-  $('statTotalValue').textContent=fmtMoney(totalValue);
-  $('statReserveCost').textContent=fmtMoney(reserveCost);
-  $('statInHandCost').textContent=fmtMoney(inHandCost);
-  $('statConsumedCost').textContent=fmtMoney(consumedCost);
-  $('statOrderBudget').textContent=fmtMoney(orderBudget);
-  $('statAvgUnitCost').textContent=fmtMoney(avgUnitCost);
-  $('statHealth').textContent=`${healthy} %`;
-  $('statMoves').textContent=periodMoves.length;
-  $('statPurchasesPeriod').textContent=fmtMoney(purchaseTotals(days).total);
-  $('statPurchasesMonth').textContent=fmtMoney(purchaseMonthTotals().total);
-  $('statPurchasesTotal').textContent=fmtMoney(purchaseTotals().total);
-  $('usagePeriodLabel').textContent=`${days} jours`;
-  $('costPeriodLabel').textContent=`${days} jours`;
+  const days=statsDays(),label=periodLabel(days),periodMoves=movesWithin(days),usage=consumptionMap(days),usageCosts=consumptionCostMap(days),top=statsTopLimit();
+  const reserveCost=products.reduce((s,p)=>s+Number(p.reserveStock||0)*Number(p.unitCost||0),0),inHandCost=products.reduce((s,p)=>s+Number(p.inHandStock||0)*Number(p.unitCost||0),0),totalValue=reserveCost+inHandCost;
+  const orderBudget=products.reduce((s,p)=>s+toOrder(p)*Number(p.unitCost||0),0),pricedProducts=products.filter(p=>Number(p.unitCost||0)>0),avgUnitCost=pricedProducts.length?pricedProducts.reduce((s,p)=>s+Number(p.unitCost||0),0)/pricedProducts.length:0;
+  const consumedCost=[...usageCosts.values()].reduce((sum,cost)=>sum+Number(cost||0),0),healthy=products.length?Math.round(products.filter(p=>statusOf(p).key==='ok').length/products.length*100):0;
+  $('statTotalValue').textContent=fmtMoney(totalValue);$('statReserveCost').textContent=fmtMoney(reserveCost);$('statInHandCost').textContent=fmtMoney(inHandCost);$('statConsumedCost').textContent=fmtMoney(consumedCost);$('statOrderBudget').textContent=fmtMoney(orderBudget);$('statAvgUnitCost').textContent=fmtMoney(avgUnitCost);$('statHealth').textContent=`${healthy} %`;$('statMoves').textContent=periodMoves.length;$('statPurchasesPeriod').textContent=fmtMoney(purchaseTotals(days===0?null:days).total);$('statPurchasesMonth').textContent=fmtMoney(purchaseMonthTotals().total);$('statPurchasesTotal').textContent=fmtMoney(purchaseTotals().total);
+  ['usagePeriodLabel','costPeriodLabel','purchaseChartPeriodLabel','movementChartPeriodLabel','inventoryValuePeriodLabel','purchaseVsConsumptionPeriodLabel'].forEach(id=>$(id).textContent=label);
 
-  const usageRows=[...usage.entries()].map(([id,qty])=>({p:products.find(p=>p.id===id),qty})).filter(x=>x.p).sort((a,b)=>b.qty-a.qty).slice(0,8);
-  const maxUsage=Math.max(1,...usageRows.map(x=>x.qty));
-  $('usageChart').innerHTML=usageRows.length?usageRows.map(x=>`<div class="bar-row"><div class="bar-label">${escapeHtml(x.p.name)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,x.qty/maxUsage*100)}%"></div></div><div class="bar-value">${fmtQty(x.qty)} ${escapeHtml(x.p.unit)}</div></div>`).join(''):'<div class="empty">Aucune consommation enregistrée pendant cette période.</div>';
+  let usageRows=[...usage.entries()].map(([id,qty])=>({p:products.find(p=>p.id===id),qty})).filter(x=>x.p).sort((a,b)=>b.qty-a.qty);if(top>0)usageRows=usageRows.slice(0,top);renderBars('usageChart',usageRows.map(x=>({name:x.p.name,qty:x.qty,unit:x.p.unit})),'qty');
+  let costRows=[...usageCosts.entries()].map(([id,cost])=>({p:products.find(p=>p.id===id),cost:Number(cost||0)})).filter(x=>x.p&&x.cost>0).sort((a,b)=>b.cost-a.cost);if(top>0)costRows=costRows.slice(0,top);renderBars('consumptionCostChart',costRows.map(x=>({name:x.p.name,cost:x.cost})),'cost',{money:true});
 
-  const costRows=[...usageCosts.entries()].map(([id,cost])=>({p:products.find(p=>p.id===id),cost:Number(cost||0)})).filter(x=>x.p&&x.cost>0).sort((a,b)=>b.cost-a.cost).slice(0,8);
-  const maxCost=Math.max(1,...costRows.map(x=>x.cost));
-  $('consumptionCostChart').innerHTML=costRows.length?costRows.map(x=>`<div class="bar-row"><div class="bar-label">${escapeHtml(x.p.name)}</div><div class="bar-track"><div class="bar-fill cost-bar" style="width:${Math.max(2,x.cost/maxCost*100)}%"></div></div><div class="bar-value">${fmtMoney(x.cost)}</div></div>`).join(''):'<div class="empty">Ajoute le coût unitaire de tes produits et enregistre les consommations pour voir leur coût réel.</div>';
+  const purchases=aggregateSeries(days,(m,o)=>{o.amount=(o.amount||0)+(isPurchaseMovement(m)?Number(m.purchaseTotalCost||0):0)});renderLineChart('purchaseTrendChart',purchases.rows,[{key:'amount',label:'Achats'}],{money:true});
+  const stockMoves=aggregateSeries(days,(m,o)=>{const dir=movementDirection(m),q=Number(m.qty||0);if(dir==='add')o.added=(o.added||0)+q;if(dir==='remove')o.removed=(o.removed||0)+q});renderLineChart('movementTrendChart',stockMoves.rows,[{key:'added',label:'Ajouts'},{key:'removed',label:'Retraits'}],{integer:false});
+  const moneyFlow=aggregateSeries(days,(m,o)=>{if(isPurchaseMovement(m))o.purchases=(o.purchases||0)+Number(m.purchaseTotalCost||0);if(isConsumption(m))o.consumed=(o.consumed||0)+Number(m.qty||0)*Number(m.unitCostAtTime||products.find(p=>p.id===m.productId)?.unitCost||0)});renderLineChart('purchaseVsConsumptionChart',moneyFlow.rows,[{key:'purchases',label:'Achats'},{key:'consumed',label:'Consommation'}],{money:true});
 
-  const byCat=new Map();for(const p of products){const cat=p.category||'Sans catégorie';byCat.set(cat,(byCat.get(cat)||0)+Number(p.reserveStock||0)*Number(p.unitCost||0))}
-  const catRows=[...byCat.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value).slice(0,10),maxCat=Math.max(1,...catRows.map(x=>x.value));
-  $('categoryChart').innerHTML=catRows.length?catRows.map(x=>`<div class="bar-row"><div class="bar-label">${escapeHtml(x.name)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,x.value/maxCat*100)}%"></div></div><div class="bar-value">${fmtMoney(x.value)}</div></div>`).join(''):'<div class="empty">Ajoute des produits et leurs coûts pour voir cette statistique.</div>';
+  const range=bucketRange(days),deltaByBucket=new Map(range.keys.map(k=>[k,0]));for(const m of movesWithin(days)){const k=bucketKey(new Date(m.date),range.mode);if(deltaByBucket.has(k))deltaByBucket.set(k,deltaByBucket.get(k)+movementInventoryDelta(m))}
+  const startValue=totalValue-[...deltaByBucket.values()].reduce((s,v)=>s+v,0);let running=startValue;const valueRows=range.keys.map(k=>{running+=deltaByBucket.get(k)||0;return {label:formatBucketLabel(k,range.mode),value:Math.max(0,running)}});renderLineChart('inventoryValueTrendChart',valueRows,[{key:'value',label:'Valeur inventaire'}],{money:true});
 
-  const coverage=products.map(p=>{const used=usage.get(p.id)||0;const daily=used/days;const cover=daily>0?totalAvailable(p)/daily:null;return {p,used,cover}}).filter(x=>x.used>0).sort((a,b)=>(a.cover??99999)-(b.cover??99999)).slice(0,15);
-  $('coverageList').innerHTML=coverage.length?coverage.map(x=>{const d=Math.round(x.cover);const cls=d<14?'low':d<30?'mid':'good';return `<div class="coverage-row"><div><b>${escapeHtml(x.p.name)}</b><small>${fmtQty(x.used)} ${escapeHtml(x.p.unit)} consommé(s) en ${days} jours • ${fmtQty(totalAvailable(x.p))} disponible(s)</small></div><div class="coverage-days ${cls}">≈ ${d} j</div></div>`}).join(''):'<div class="empty">Pas encore assez de mouvements de consommation pour estimer la couverture.</div>';
+  const byCat=new Map();for(const p of products){const cat=p.category||'Sans catégorie';byCat.set(cat,(byCat.get(cat)||0)+totalAvailable(p)*Number(p.unitCost||0))}const catRows=[...byCat.entries()].map(([name,value])=>({name,value})).filter(x=>x.value>0).sort((a,b)=>b.value-a.value);renderBars('categoryChart',catRows,'value',{money:true});renderHealthChart();
+
+  const coverageDays=days===0?Math.max(1,Math.round((Date.now()-periodStart(0).getTime())/86400000)):days;const coverage=products.map(p=>{const used=usage.get(p.id)||0,daily=used/coverageDays,cover=daily>0?totalAvailable(p)/daily:null;return {p,used,cover}}).filter(x=>x.used>0).sort((a,b)=>(a.cover??99999)-(b.cover??99999)).slice(0,15);$('coverageList').innerHTML=coverage.length?coverage.map(x=>{const d=Math.round(x.cover),cls=d<14?'low':d<30?'mid':'good';return `<div class="coverage-row"><div><b>${escapeHtml(x.p.name)}</b><small>${fmtQty(x.used)} ${escapeHtml(x.p.unit)} consommé(s) • ${fmtQty(totalAvailable(x.p))} disponible(s)</small></div><div class="coverage-days ${cls}">≈ ${d} j</div></div>`}).join(''):'<div class="empty">Pas encore assez de mouvements de consommation pour estimer la couverture.</div>';
 }
 
 /* ---------- Scanner UPC / EAN ---------- */
@@ -334,7 +393,7 @@ function navigate(view){document.querySelectorAll('.view').forEach(v=>v.classLis
 function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200)}
 function downloadBlob(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1200)}
 function downloadBytes(name,bytes,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytes],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
-async function exportBackup(){const data={app:'Inventaire Pro',version:3.1,exportedAt:nowIso(),products,movements};downloadBlob(`inventaire-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data,null,2),'application/json');showToast('Sauvegarde exportée')}
+async function exportBackup(){const data={app:'Inventaire Pro',version:3.2,exportedAt:nowIso(),products,movements};downloadBlob(`inventaire-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data,null,2),'application/json');showToast('Sauvegarde exportée')}
 async function importBackup(file){try{const data=JSON.parse(await file.text());if(!Array.isArray(data.products)||!Array.isArray(data.movements))throw new Error();if(!confirm(`Importer ${data.products.length} produits ? Les données actuelles seront remplacées.`))return;await clearStore(PRODUCTS);await clearStore(MOVEMENTS);for(const p of data.products)await put(PRODUCTS,p);for(const m of data.movements)await put(MOVEMENTS,m);await loadData();showToast('Sauvegarde importée')}catch(e){console.error(e);showToast('Fichier de sauvegarde invalide')}}
 function exportCsv(){const header=['Produit','Code-barres','Catégorie','Unité','Réserve','En main','Minimum réserve','Stock cible','À commander','Coût unitaire','Fournisseur','Emplacement','Lien produit','Notes'];const rows=products.map(p=>[p.name,p.barcode||'',p.category,p.unit,p.reserveStock,p.inHandStock,p.minReserve,targetOf(p),toOrder(p),p.unitCost,p.supplier,p.location,p.productUrl,p.notes]);const csv=[header,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');downloadBlob(`inventaire-${new Date().toISOString().slice(0,10)}.csv`,`\ufeff${csv}`,'text/csv;charset=utf-8');showToast('CSV exporté')}
 async function seedExamples(){if(products.length&&!confirm('Ajouter les exemples à ton inventaire actuel ?'))return;const samples=[
@@ -355,7 +414,7 @@ function setupEvents(){
   $('movementType').addEventListener('change',updateMovementPurchaseFields);$('movementQty').addEventListener('input',updateMovementPurchaseFields);$('movementUnitCost').addEventListener('input',updateMovementPurchaseFields);
   ['reserveStock','inHandStock','minReserve','targetReserve','unitCost'].forEach(id=>$(id).addEventListener('input',updateFormulaPreview));
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
-  $('searchInput').addEventListener('input',renderInventory);$('categoryFilter').addEventListener('change',renderInventory);$('statsPeriod').addEventListener('change',renderStats);
+  $('searchInput').addEventListener('input',renderInventory);$('categoryFilter').addEventListener('change',renderInventory);$('statsPeriod').addEventListener('change',renderStats);$('statsTopLimit').addEventListener('change',renderStats);
   $('exportBtn').onclick=exportBackup;$('exportCsvBtn').onclick=exportCsv;$('seedBtn').onclick=seedExamples;$('clearBtn').onclick=clearEverything;
   $('importInput').addEventListener('change',e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value=''});
   $('photoLibraryInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('photoCameraInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('removePhotoBtn').onclick=()=>{tempPhotoData='';updatePhotoPreview()};

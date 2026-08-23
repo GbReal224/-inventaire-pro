@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="app.css?v=3.1" />
+  <link rel="stylesheet" href="app.css?v=3.2" />
   <title>Inventaire Pro</title>
 </head>
 <body>
@@ -106,17 +106,26 @@
       </section>
 
       <section id="statsView" class="view" aria-labelledby="statsTitle">
-        <div class="section-head">
+        <div class="section-head stats-head">
           <div>
             <h2 id="statsTitle">Statistiques</h2>
-            <p class="muted">Consommation, valeur et couverture</p>
+            <p class="muted">Achats, consommation, mouvements et valeur</p>
           </div>
-          <select id="statsPeriod" class="period-select" aria-label="Période des statistiques">
-            <option value="7">7 jours</option>
-            <option value="30" selected>30 jours</option>
-            <option value="90">90 jours</option>
-            <option value="365">1 an</option>
-          </select>
+          <div class="stats-filters">
+            <select id="statsPeriod" class="period-select" aria-label="Période des statistiques">
+              <option value="7">7 jours</option>
+              <option value="30" selected>30 jours</option>
+              <option value="90">3 mois</option>
+              <option value="180">6 mois</option>
+              <option value="365">1 an</option>
+              <option value="0">Tout</option>
+            </select>
+            <select id="statsTopLimit" class="period-select" aria-label="Nombre de produits affichés">
+              <option value="5">Top 5</option>
+              <option value="10" selected>Top 10</option>
+              <option value="0">Tous</option>
+            </select>
+          </div>
         </div>
 
         <div class="kpi-grid stats-kpi-grid">
@@ -133,19 +142,46 @@
           <article class="kpi-card purchase"><span>Achats enregistrés</span><strong id="statPurchasesTotal">0,00 $</strong></article>
         </div>
 
-        <section class="panel">
-          <div class="panel-title-row"><h3>Produits les plus consommés</h3><span id="usagePeriodLabel" class="tiny-muted"></span></div>
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Achats dans le temps</h3><p class="chart-subtitle">Montant réellement enregistré comme achat</p></div><span id="purchaseChartPeriodLabel" class="tiny-muted"></span></div>
+          <div id="purchaseTrendChart" class="svg-chart"></div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Consommation de chaque produit</h3><p class="chart-subtitle">Quantités consommées, classées du plus utilisé au moins utilisé</p></div><span id="usagePeriodLabel" class="tiny-muted"></span></div>
           <div id="usageChart" class="bar-chart"></div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title-row"><h3>Coût de consommation par produit</h3><span id="costPeriodLabel" class="tiny-muted"></span></div>
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Coût des produits consommés</h3><p class="chart-subtitle">Valeur consommée par produit selon le coût au moment du mouvement</p></div><span id="costPeriodLabel" class="tiny-muted"></span></div>
           <div id="consumptionCostChart" class="bar-chart"></div>
         </section>
 
-        <section class="panel">
-          <h3>Valeur de réserve par catégorie</h3>
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Mouvements de stock</h3><p class="chart-subtitle">Unités ajoutées versus unités retirées</p></div><span id="movementChartPeriodLabel" class="tiny-muted"></span></div>
+          <div id="movementTrendChart" class="svg-chart"></div>
+          <p class="helper chart-note">Les transferts Réserve ↔ En main ne changent pas le stock total et ne sont donc pas comptés comme ajout ou retrait.</p>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Valeur de l’inventaire dans le temps</h3><p class="chart-subtitle">Évolution estimée de la valeur totale du stock</p></div><span id="inventoryValuePeriodLabel" class="tiny-muted"></span></div>
+          <div id="inventoryValueTrendChart" class="svg-chart"></div>
+          <p class="helper chart-note">Les mouvements enregistrés avec cette version rendent l’historique exact. Les anciennes modifications directes non journalisées peuvent rendre le début de l’historique approximatif.</p>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Achats VS consommation</h3><p class="chart-subtitle">Argent dépensé pour acheter du stock versus valeur du stock consommé</p></div><span id="purchaseVsConsumptionPeriodLabel" class="tiny-muted"></span></div>
+          <div id="purchaseVsConsumptionChart" class="svg-chart"></div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Valeur par catégorie</h3><p class="chart-subtitle">Répartition actuelle de la valeur totale Réserve + En main</p></div><span class="tiny-muted">Actuel</span></div>
           <div id="categoryChart" class="bar-chart"></div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-title-row"><div><h3>Santé du stock</h3><p class="chart-subtitle">Répartition actuelle des produits par niveau de stock</p></div><span class="tiny-muted">Actuel</span></div>
+          <div id="stockHealthChart" class="health-chart"></div>
         </section>
 
         <section class="panel">
@@ -333,6 +369,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=3.1"></script>
+  <script src="app.js?v=3.2"></script>
 </body>
 </html>

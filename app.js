@@ -231,6 +231,32 @@ const AMAZON_BUSINESS_LOGIN = 'https://business.amazon.ca/fr/login';
 function isAmazonDestination(value){
   try{const host=new URL(value).hostname.toLowerCase();return /(^|\.)amazon\.(ca|com)$/.test(host)||['amzn.to','a.co'].includes(host)}catch{return false}
 }
+function amazonBusinessProductUrl(p){
+  let url=new URL(productAmazonUrl(p));
+  // Amazon publishes /abredir/* for its Business iOS app on this domain:
+  // https://business.amazon.ca/.well-known/apple-app-site-association
+  // The endpoint preserves the product path and query when falling back to the web.
+  if(/^business\.amazon\.(ca|com)$/.test(url.hostname))return url.href;
+  if(['amzn.to','a.co'].includes(url.hostname)){
+    // Short links belong to the Shopping app. Use the item's identifier instead.
+    const term=p?.barcode||p?.name||'';
+    url=new URL(term?amazonSearchUrl(term):'https://www.amazon.ca/');
+  }
+  const market=url.hostname.match(/(?:^|\.)(amazon\.(?:ca|com))$/)?.[1];
+  if(!market)return url.href;
+  url.protocol='https:';url.hostname=`business.${market}`;url.port='';
+  url.pathname=`/abredir${url.pathname}`;
+  return url.href;
+}
+function amazonBrowserProductUrl(p){
+  const url=new URL(amazonBusinessProductUrl(p));
+  if(/^business\.amazon\.(ca|com)$/.test(url.hostname)&&url.pathname.startsWith('/abredir/')){
+    url.hostname=url.hostname.replace(/^business\./,'www.');url.pathname=url.pathname.slice('/abredir'.length);
+  }
+  // Amazon's association file explicitly excludes nodl=1 from native app handoff.
+  url.searchParams.set('nodl','1');
+  return url.href;
+}
 function openAmazonBusiness(p){
   if(!p)return;
   const destination=productAmazonUrl(p);
@@ -238,7 +264,8 @@ function openAmazonBusiness(p){
   if(!isAmazonDestination(destination)){openExternal(destination);return}
   stopScanner();
   $('amazonProductName').textContent=p.name||p.barcode||'Recherche de produit';
-  $('amazonProductLink').href=destination;
+  $('amazonProductLink').href=amazonBusinessProductUrl(p);
+  $('amazonBrowserLink').href=amazonBrowserProductUrl(p);
   $('amazonBusinessLoginLink').href=AMAZON_BUSINESS_LOGIN;
   if(!$('amazonDialog').open)$('amazonDialog').showModal();
 }

@@ -147,20 +147,24 @@ test('Photo fallback reads an actual image and finds the existing inventory prod
   await page.click('#scanUseBtn');assert.equal(await page.inputValue('#productId'),'test-product');
 });
 
-test('Amazon links offer the official Business login and preserve the exact product',async t=>{
+test('Amazon links use the Business app route and preserve the exact product',async t=>{
   const {page,context}=await openApp(t);await installCameraMock(page);
   const productUrl='https://www.amazon.ca/dp/B012345678?th=1&psc=1';
+  const appUrl='https://business.amazon.ca/abredir/dp/B012345678?th=1&psc=1';
   await page.evaluate(productUrl=>{products=[{id:'test',name:'Produit test',barcode:'012345678905',productUrl}];renderInventory();navigate('inventory')},productUrl);
   await page.click('#inventoryList [data-amazon]');
   assert.equal(await page.getAttribute('#amazonBusinessLoginLink','href'),'https://business.amazon.ca/fr/login');
-  assert.equal(await page.getAttribute('#amazonProductLink','href'),productUrl);
+  assert.equal(await page.getAttribute('#amazonProductLink','href'),appUrl);
+  assert.equal(await page.getAttribute('#amazonBrowserLink','href'),productUrl+'&nodl=1');
   await context.route('https://business.amazon.ca/**',route=>route.fulfill({contentType:'text/html',body:'Business login test'}));
+  const productPopupPromise=page.waitForEvent('popup');await page.click('#amazonProductLink');const productPopup=await productPopupPromise;
+  await productPopup.waitForLoadState();assert.equal(productPopup.url(),appUrl);await productPopup.close();
   const popupPromise=page.waitForEvent('popup');await page.click('#amazonBusinessLoginLink');const popup=await popupPromise;
   await popup.waitForLoadState();assert.equal(popup.url(),'https://business.amazon.ca/fr/login');await popup.close();
-  assert.equal(await page.getAttribute('#amazonProductLink','href'),productUrl);
+  assert.equal(await page.getAttribute('#amazonProductLink','href'),appUrl);
   await page.click('[data-close="amazonDialog"]');
   await page.click('#scanTopBtn');await page.fill('#manualBarcode','012345678905');await page.click('#manualCodeBtn');await page.click('#scanAmazonBtn');
-  assert.equal(await page.getAttribute('#amazonProductLink','href'),productUrl,'Scan reuses the saved exact link');
+  assert.equal(await page.getAttribute('#amazonProductLink','href'),appUrl,'Scan reuses the saved exact product');
   assert.equal(await page.evaluate(()=>$('scannerVideo').srcObject),null);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No horizontal page overflow');
   await page.evaluate(()=>{openAmazonBusiness({name:'Nettoyant & cire'});});
@@ -168,6 +172,22 @@ test('Amazon links offer the official Business login and preserve the exact prod
   await context.route('https://supplier.example/**',route=>route.fulfill({contentType:'text/html',body:'Supplier test'}));
   const supplierPopup=page.waitForEvent('popup');await page.evaluate(()=>openAmazonBusiness({productUrl:'https://supplier.example/product'}));
   const supplier=await supplierPopup;await supplier.waitForLoadState();assert.equal(supplier.url(),'https://supplier.example/product');await supplier.close();
+});
+
+test('Business routing handles searches, short links and existing Business links',async t=>{
+  const {page}=await openApp(t);
+  const cases=[
+    [{barcode:'012345678905'},'https://business.amazon.ca/abredir/s?k=012345678905'],
+    [{name:'Nettoyant & cire'},'https://business.amazon.ca/abredir/s?k=Nettoyant%20%26%20cire'],
+    [{productUrl:'https://a.co/d/short',barcode:'012345678905'},'https://business.amazon.ca/abredir/s?k=012345678905'],
+    [{productUrl:'https://amzn.to/short',name:'Gants'},'https://business.amazon.ca/abredir/s?k=Gants'],
+    [{productUrl:'https://business.amazon.ca/abredir/dp/B012345678?th=1'},'https://business.amazon.ca/abredir/dp/B012345678?th=1'],
+    [{productUrl:'https://www.amazon.com/gp/product/B012345678?psc=1#details'},'https://business.amazon.com/abredir/gp/product/B012345678?psc=1#details'],
+    [{productUrl:'https://www.amazon.ca/Product-Name/dp/B012345678'},'https://business.amazon.ca/abredir/Product-Name/dp/B012345678']
+  ];
+  for(const [product,expected] of cases)assert.equal(await page.evaluate(p=>amazonBusinessProductUrl(p),product),expected);
+  const browserUrl=await page.evaluate(()=>amazonBrowserProductUrl({productUrl:'https://business.amazon.ca/abredir/dp/B012345678?th=1'}));
+  assert.equal(browserUrl,'https://www.amazon.ca/dp/B012345678?th=1&nodl=1');
 });
 
 test('An installed copy reloads and decodes fully offline without CDN requests',async t=>{

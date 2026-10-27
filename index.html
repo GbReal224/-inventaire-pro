@@ -229,7 +229,7 @@
         </section>
         <section class="panel">
           <h3>Amazon Business</h3>
-          <p class="helper">Le bouton <b>Amazon Business</b> te permet d’accéder à la connexion professionnelle, puis d’ouvrir le produit ou sa recherche. Amazon Business Canada utilise aussi amazon.ca : vérifie que ton compte professionnel est sélectionné sur Amazon. Tu peux enregistrer le lien exact du produit dans sa fiche.</p>
+          <p class="helper">Le bouton <b>Amazon Business</b> propose l’ouverture du produit ou de sa recherche dans l’application Amazon Business sur iPhone. Une option permet aussi de rester sur le site web. Utilise ton compte professionnel et enregistre le lien exact du produit dans sa fiche.</p>
         </section>
         <section class="panel">
           <h3>Sauvegarde locale</h3>
@@ -378,16 +378,17 @@
         <button type="button" class="close-btn" data-close="amazonDialog" aria-label="Fermer Amazon Business">×</button>
       </div>
       <p id="amazonProductName" class="product-name"></p>
-      <p class="helper">Connecte-toi à ton compte Amazon Business, puis reviens ici pour ouvrir le produit. Si tu es déjà connecté au compte professionnel, tu peux ouvrir le produit directement.</p>
+      <p class="helper">Sur iPhone, le premier bouton utilise le lien destiné à l’application Amazon Business. Utilise ton compte professionnel dans cette application.</p>
       <div class="amazon-links">
-        <a id="amazonBusinessLoginLink" class="amazon-btn" href="https://business.amazon.ca/fr/login" target="_blank" rel="noopener noreferrer">Se connecter à Amazon Business</a>
-        <a id="amazonProductLink" class="secondary-btn" target="_blank" rel="noopener noreferrer">Ouvrir le produit / la recherche</a>
+        <a id="amazonProductLink" class="amazon-btn" target="_blank" rel="noopener noreferrer">Ouvrir dans l’app Amazon Business</a>
+        <a id="amazonBrowserLink" class="secondary-btn" target="_blank" rel="noopener noreferrer">Ouvrir sur le site web</a>
+        <a id="amazonBusinessLoginLink" class="text-btn" href="https://business.amazon.ca/fr/login" target="_blank" rel="noopener noreferrer">Connexion professionnelle</a>
       </div>
-      <p class="helper">Si Amazon affiche ton compte personnel, utilise « Changer de compte » sur Amazon. Le compte actif est géré par Amazon.</p>
+      <p class="helper">Si l’application ne s’ouvre pas, utilise le site web. Sur le site, vérifie que ton compte Amazon Business est sélectionné.</p>
     </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=3.2.1"></script>
+  <script src="app.js?v=3.2.2"></script>
 </body>
 </html>

@@ -1,27 +1,38 @@
-INVENTAIRE PRO 3.2 — GRAPHIQUES AVANCÉS
+INVENTAIRE PRO 4.0.0 — iPHONE, ANDROID ET ORDINATEUR
 
-Base : v3.1 améliorée. Toutes les fonctions précédentes sont conservées.
+La mise à jour conserve la base IndexedDB existante. Le scanner iPhone et le lien Amazon Business validés sont conservés.
 
-NOUVEAUTÉS STATS
-- graphique Achats dans le temps;
-- graphique Consommation de chaque produit;
-- graphique Coût des produits consommés;
-- graphique Mouvements de stock : ajouts vs retraits;
-- graphique Valeur de l’inventaire dans le temps;
-- graphique Achats VS consommation en dollars;
-- graphique Valeur actuelle par catégorie;
-- graphique Santé du stock;
-- filtre global 7 jours / 30 jours / 3 mois / 6 mois / 1 an / Tout;
-- filtre Top 5 / Top 10 / Tous pour les graphiques par produit.
+NOUVEAUTÉS
+- Sauvegardes vérifiées entièrement avant import, remplacement atomique et copie de récupération locale avant import ou effacement.
+- Archivage / restauration des produits ; conservation du stock et de l’historique.
+- Enregistrement atomique du stock, du mouvement et de la réception ; protection contre les doubles soumissions et les modifications concurrentes dans plusieurs fenêtres.
+- Même calcul À commander dans l’accueil, les commandes et les exports. Minimum = 0 désactive le réapprovisionnement automatique ; une rupture reste signalée.
+- Dernier export demandé affiché, date réelle de modification locale et rappel après 7 jours. Vérifier que le fichier a été conservé dans Fichiers / Téléchargements.
+- Commandes enregistrées : commandé, partiellement reçu, reçu, annulé ; référence, livraison prévue, réceptions partielles et prise en compte des quantités attendues.
+- Actions Consommer, Sortir de réserve et Recevoir sur les fiches et après un scan reconnu.
+- Historique filtrable par produit, dates, action ou texte ; chargement progressif de tous les mouvements et achats.
+- Annulation traçable du dernier mouvement de stock de chaque produit, avec restauration du coût et de la réception liée. Pour corriger une opération ancienne, annuler les suivantes dans l’ordre ou saisir un ajustement avec une note.
+- Inventaire filtrable par niveau, fournisseur, emplacement, catégorie et archives ; tri par nom, quantité, valeur et urgence.
+- Conditionnement : une boîte peut contenir 12 bouteilles ; un bidon peut contenir 4 000 mL. Les coûts d’achat sont convertis par unité et le coût moyen reste pondéré par le stock. L’unité historique d’un produit reste fixe après son premier mouvement.
+- Statistiques par produit et dates personnalisées ; graphiques adaptés à l’écran, valeurs au toucher et tableaux accessibles. Pas de somme d’unités incompatibles pour le graphique des mouvements.
+- Boutons portant le nom du fournisseur et conservation des liens exacts.
+- Lisibilité, zones tactiles, libellés accessibles, navigation clavier et version cohérente.
+- Synchronisation préparée : identifiants stables, identifiant d’inventaire, révisions et sauvegarde versionnée. Aucun serveur, compte ou transfert automatique activé ; service à choisir plus tard.
 
-FIABILITÉ DE L’HISTORIQUE
-- Réception / Achat = achat + ajout de stock.
-- Ajustement + / - = mouvement de stock, jamais un achat.
-- Modifier directement une quantité crée maintenant automatiquement un mouvement d’ajustement, jamais un achat.
-- Créer un produit avec du stock initial crée un mouvement « stock initial », jamais un achat.
-- Modifier le coût unitaire journalise la variation de valeur pour améliorer le graphique de valeur d’inventaire.
+ANDROID
+Ouvrir https://gbreal224.github.io/-inventaire-pro/ dans Chrome, puis menu ⋮ → Installer l’application / Ajouter à l’écran d’accueil. Un bouton Installer apparaît aussi dans Réglages lorsque Chrome le propose.
+Le scanner utilise la caméra arrière, le choix de caméra, le zoom disponible et le décodeur embarqué. La photo et la saisie manuelle restent disponibles.
+Le lien Amazon Business cible le paquet Android Business déclaré par Amazon, avec repli vers le site web. Les données restent propres à chaque appareil tant que la synchronisation n’est pas activée.
 
-Les données historiques plus anciennes restent compatibles. Certaines anciennes modifications directes qui n’étaient pas journalisées peuvent rendre le début du graphique de valeur approximatif.
+SUR iPHONE
+Fermer complètement puis rouvrir l’application. Vérifier Inventaire Pro 4.0.0 dans Réglages. Conserver la même adresse et ne pas effacer les données du navigateur.
 
-Avant la mise à jour, exporter une sauvegarde JSON depuis Réglages.
-Pour GitHub Pages, remplacer les anciens fichiers à la racine du dépôt par les fichiers de ce ZIP.
+COMMANDES FOURNISSEURS
+Les commandes saisies sont un suivi local. L’application n’envoie aucune commande et n’effectue aucun paiement auprès d’un fournisseur.
+
+SAUVEGARDES
+Les sauvegardes v3 sont compatibles ; les mouvements liés aux anciens produits supprimés sont conservés sous des fiches archivées. Les sauvegardes v4 incluent les archives et commandes. L’import remplace le contenu local ; il ne fusionne pas deux inventaires.
+
+VÉRIFICATION
+Tests automatisés Node et navigateurs WebKit / Chromium : conversion des unités, commandes, réceptions, annulations, rollback, récupération, migration v3, concurrence, filtres, historique de plus de 300 mouvements, rendu mobile, scanner réel UPC/EAN et fonctionnement hors connexion.
+L’émulation ne remplace pas un essai matériel Android pour la caméra et l’ouverture d’une application externe.

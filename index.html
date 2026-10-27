@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="app.css?v=3.2.1" />
+  <link rel="stylesheet" href="app.css?v=4.0.0" />
   <title>Inventaire Pro</title>
 </head>
 <body>
@@ -28,6 +28,7 @@
     </header>
 
     <main>
+      <aside id="backupReminder" class="notice hidden"><span>Pense à exporter une sauvegarde : la copie locale reste sur cet appareil.</span><button id="backupNowBtn" class="text-btn">Sauvegarder</button></aside>
       <section id="dashboardView" class="view active" aria-labelledby="dashboardTitle">
         <div class="section-head">
           <div>
@@ -83,9 +84,14 @@
           </div>
         </div>
         <div class="filters">
-          <input id="searchInput" type="search" placeholder="Rechercher nom, code-barres…" autocomplete="off" />
-          <select id="categoryFilter"><option value="">Toutes catégories</option></select>
+          <input id="searchInput" type="search" aria-label="Rechercher dans l’inventaire" placeholder="Rechercher nom, code-barres…" autocomplete="off" />
+          <select id="categoryFilter" aria-label="Catégorie"><option value="">Toutes catégories</option></select>
+          <select id="stockFilter" aria-label="État du stock"><option value="">Produits actifs</option><option value="out">Ruptures</option><option value="order">À commander</option><option value="pending">En commande</option><option value="watch">À surveiller</option><option value="archived">Archives</option></select>
+          <select id="supplierFilter" aria-label="Fournisseur"><option value="">Tous fournisseurs</option></select>
+          <select id="locationFilter" aria-label="Emplacement"><option value="">Tous emplacements</option></select>
+          <select id="inventorySort" aria-label="Trier les produits"><option value="name">Nom A–Z</option><option value="urgency">Urgence</option><option value="quantity">Quantité croissante</option><option value="value">Valeur décroissante</option></select>
         </div>
+        <p id="inventoryCount" class="helper" role="status"></p>
         <div id="inventoryList" class="card-list product-list"></div>
       </section>
 
@@ -103,6 +109,12 @@
           <div><span>Budget estimé</span><strong id="orderBudget">0,00 $</strong></div>
         </div>
         <div id="ordersList" class="card-list"></div>
+        <section class="panel">
+          <div class="panel-title-row"><h3>Suivi des commandes</h3><button id="newOrderBtn" class="small-btn">Nouvelle commande</button></div>
+          <p class="helper">Enregistre ici les commandes passées à ton fournisseur. Aucune commande ni paiement n’est envoyé depuis l’application. Le stock augmente lors de la réception.</p>
+          <label>Afficher<select id="orderFilter"><option value="open">En attente / partielles</option><option value="">Toutes</option><option value="received">Reçues</option><option value="cancelled">Annulées</option></select></label>
+          <div id="orderTrackingList" class="card-list"></div><button id="ordersMore" class="secondary-btn" hidden>Afficher plus de commandes</button>
+        </section>
       </section>
 
       <section id="statsView" class="view" aria-labelledby="statsTitle">
@@ -119,6 +131,7 @@
               <option value="180">6 mois</option>
               <option value="365">1 an</option>
               <option value="0">Tout</option>
+              <option value="-1">Dates personnalisées</option>
             </select>
             <select id="statsTopLimit" class="period-select" aria-label="Nombre de produits affichés">
               <option value="5">Top 5</option>
@@ -128,7 +141,7 @@
           </div>
         </div>
 
-        <div class="kpi-grid stats-kpi-grid">
+        <div class="filters"><select id="statsProduct" aria-label="Produit des statistiques"><option value="">Tous les produits</option></select></div><div id="statsDates" class="filters hidden"><label>Du<input id="statsFrom" type="date" /></label><label>Au<input id="statsTo" type="date" /></label></div><p id="statsRangeError" class="danger-text" role="status"></p><p class="helper">Les valeurs actuelles incluent le stock des archives. Le filtre produit s’applique aux graphiques et indicateurs.</p><div class="kpi-grid stats-kpi-grid">
           <article class="kpi-card"><span>Coût total du stock</span><strong id="statTotalValue">0,00 $</strong></article>
           <article class="kpi-card"><span>Coût en réserve</span><strong id="statReserveCost">0,00 $</strong></article>
           <article class="kpi-card"><span>Coût en main</span><strong id="statInHandCost">0,00 $</strong></article>
@@ -192,6 +205,12 @@
       </section>
 
       <section id="historyView" class="view" aria-labelledby="historyTitle">
+        <div class="filters history-filters">
+          <input id="historySearch" type="search" aria-label="Rechercher dans l’historique" placeholder="Produit, action ou note…" />
+          <select id="historyProduct" aria-label="Produit dans l’historique"><option value="">Tous les produits</option></select>
+          <select id="historyType" aria-label="Type de mouvement"><option value="">Toutes les actions</option><option value="receive">Achats / réceptions</option><option value="consume">Consommations</option><option value="open">Sorties de réserve</option><option value="return">Retours</option><option value="correction">Corrections</option><option value="archive">Archivages</option></select>
+          <label>Du<input id="historyFrom" type="date" /></label><label>Au<input id="historyTo" type="date" /></label>
+        </div>
         <div class="section-head">
           <div>
             <h2 id="historyTitle">Historique</h2>
@@ -210,35 +229,40 @@
         </section>
         <div class="section-subhead"><h3>Tous les mouvements</h3></div>
         <div id="historyList" class="history-list"></div>
+        <p id="historyCount" class="helper" role="status"></p><button id="historyMore" class="secondary-btn">Afficher 100 mouvements de plus</button>
       </section>
 
       <section id="settingsView" class="view" aria-labelledby="settingsTitle">
         <div class="section-head">
           <div>
             <h2 id="settingsTitle">Réglages</h2>
-            <p class="muted">Données conservées sur cet iPhone</p>
+            <p class="muted">Données conservées sur cet appareil</p>
           </div>
         </div>
         <section class="panel settings-list">
           <button id="exportPdfBtn" class="settings-row"><span>Exporter un rapport d’inventaire</span><b>PDF</b></button>
           <button id="exportBtn" class="settings-row"><span>Exporter une sauvegarde complète</span><b>JSON</b></button>
           <label class="settings-row file-row"><span>Importer une sauvegarde</span><b>Choisir</b><input id="importInput" type="file" accept="application/json,.json" /></label>
+          <button id="restoreBackupBtn" class="settings-row" disabled><span>Récupérer les données avant le dernier import / effacement</span><b>Restaurer</b></button>
           <button id="exportCsvBtn" class="settings-row"><span>Exporter l’inventaire</span><b>CSV</b></button>
           <button id="seedBtn" class="settings-row"><span>Ajouter les exemples</span><b>Démo</b></button>
           <button id="clearBtn" class="settings-row destructive"><span>Effacer toutes les données</span><b>Effacer</b></button>
         </section>
         <section class="panel">
           <h3>Amazon Business</h3>
-          <p class="helper">Le bouton <b>Amazon Business</b> propose l’ouverture du produit ou de sa recherche dans l’application Amazon Business sur iPhone. Une option permet aussi de rester sur le site web. Utilise ton compte professionnel et enregistre le lien exact du produit dans sa fiche.</p>
+          <p class="helper">Le bouton <b>Amazon Business</b> propose l’ouverture du produit ou de sa recherche dans l’application Amazon Business sur iPhone et Android. Une option permet aussi de rester sur le site web. Utilise ton compte professionnel et enregistre le lien exact du produit dans sa fiche.</p>
         </section>
         <section class="panel">
           <h3>Sauvegarde locale</h3>
           <p class="helper">Produits, photos et historique utilisent IndexedDB sur cet appareil. Aucune donnée d’inventaire n’est envoyée par cette app.</p>
-          <p class="helper"><b>Important :</b> garde occasionnellement une sauvegarde JSON dans Fichiers/iCloud. Elle contient aussi les photos enregistrées dans les fiches.</p>
+          <p id="backupStatus" class="helper"></p><p id="recoveryStatus" class="helper"></p>
+          <p class="helper">Garde une sauvegarde JSON dans Fichiers, Téléchargements ou un dossier de ton choix. Elle contient les photos, archives, commandes et mouvements. La copie de récupération locale ne remplace pas ce fichier.</p>
         </section>
+        <section class="panel"><h3>iPhone, Android et ordinateur</h3><p id="offlineStatus" class="helper"></p><p class="helper">Sur Android, ouvre cette adresse dans Chrome puis utilise le menu ⋮ → Installer l’application / Ajouter à l’écran d’accueil. Sur iPhone, utilise Safari → Partager → Sur l’écran d’accueil. Garde la même adresse pour retrouver les données de cet appareil.</p><button id="installBtn" class="primary-btn" hidden>Installer Inventaire Pro</button><p class="helper">Autorise la caméra pour scanner. La photo du code et la saisie manuelle restent disponibles. Le premier chargement nécessite une connexion.</p></section>
+        <section class="panel"><h3>Synchronisation entre appareils</h3><p id="syncStatus" class="helper"></p><p class="helper">Les identifiants des produits, commandes et mouvements sont conservés dans les sauvegardes pour préparer la future synchronisation. Le choix du service et la connexion d’un compte se feront plus tard.</p></section>
         <section class="panel">
           <h3>Version</h3>
-          <p class="helper"><b>Inventaire Pro 3.1</b> — version v3 complète avec suivi réel des achats, coût moyen automatique, photothèque iPhone et scanner ZXing UPC/EAN.</p>
+          <p class="helper"><b id="appVersion"></b> — commandes, archives, corrections, sauvegardes vérifiées, unités d’achat, scanner iPhone et Android.</p>
         </section>
       </section>
     </main>
@@ -275,6 +299,9 @@
         <label class="full">Nom du produit<input id="productName" required maxlength="100" placeholder="Ex. Nettoyant intérieur" /></label>
         <label>Catégorie<input id="productCategory" maxlength="40" placeholder="Ex. Intérieur" /></label>
         <label>Unité<select id="productUnit"><option>unité</option><option>bouteille</option><option>bidon</option><option>boîte</option><option>paquet</option><option>litre</option><option>mL</option></select></label>
+        <p id="unitHelp" class="helper full"></p>
+        <label>Conditionnement d’achat<input id="packLabel" maxlength="40" value="lot" placeholder="boîte, bidon…" /></label>
+        <label>Unités de stock par conditionnement<input id="packSize" type="number" min="0.001" step="0.001" inputmode="decimal" value="1" required /></label>
 
         <label class="full barcode-field">Code-barres UPC / EAN
           <div class="input-with-btn">
@@ -287,7 +314,7 @@
         <label>En main<input id="inHandStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Minimum en réserve<input id="minReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
         <label>Stock cible<input id="targetReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
-        <label class="cost-field">Coût par unité (CAD)<input id="unitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label class="cost-field">Coût par unité de stock (CAD)<input id="unitCost" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
         <label>Fournisseur<input id="supplier" maxlength="60" placeholder="Ex. Amazon Business" /></label>
         <label>Emplacement<input id="location" maxlength="60" placeholder="Ex. Étagère garage" /></label>
         <label class="full">Lien exact du produit<input id="productUrl" type="url" inputmode="url" placeholder="https://www.amazon.ca/…" /></label>
@@ -299,7 +326,7 @@
       </div>
       <div class="formula-preview" id="formulaPreview"></div>
       <div class="modal-actions">
-        <button id="deleteProductBtn" type="button" class="danger-btn hidden">Supprimer</button>
+        <button id="deleteProductBtn" type="button" class="danger-btn hidden">Archiver</button>
         <div class="spacer"></div>
         <button type="button" class="secondary-btn" data-close="productDialog">Annuler</button>
         <button type="submit" class="primary-btn">Enregistrer</button>
@@ -324,9 +351,12 @@
         <option value="handPlus">Ajustement en main +</option>
         <option value="handMinus">Ajustement en main −</option>
       </select></label>
-      <label>Quantité<input id="movementQty" type="number" min="0.01" step="0.01" inputmode="decimal" value="1" required /></label>
+      <label>Unité de saisie<select id="movementUnit"></select></label>
+      <label>Quantité<input id="movementQty" type="number" min="0.001" step="0.001" inputmode="decimal" value="1" required /></label>
+      <p id="movementStockPreview" class="helper"></p>
       <div id="movementPurchaseFields" class="purchase-fields">
-        <label>Coût payé par unité (CAD)<input id="movementUnitCost" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>Commande à réceptionner<select id="movementOrder"></select></label>
+        <label><span id="movementCostLabel">Coût payé par unité (CAD)</span><input id="movementUnitCost" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
         <div id="movementPurchasePreview" class="purchase-preview">Coût de cet achat : 0,00 $</div>
         <p class="helper">Ce coût est enregistré dans les statistiques. Le coût moyen du produit est recalculé automatiquement.</p>
       </div>
@@ -362,12 +392,13 @@
       <div id="scanResult" class="scan-result hidden">
         <span>Code détecté</span>
         <strong id="scanCodeText"></strong>
+        <div id="scanQuickActions"></div>
         <div class="scan-result-actions">
           <button id="scanUseBtn" type="button" class="primary-btn">Utiliser ce code</button>
           <button id="scanAmazonBtn" type="button" class="amazon-btn">Chercher Amazon Business</button>
         </div>
       </div>
-      <p class="helper scanner-help">Garde le code entier et net, sans reflet, avec un peu de blanc de chaque côté. Si l’image est floue, éloigne légèrement l’iPhone ou change de caméra. Tu peux aussi utiliser « Photo du code » ou entrer les chiffres.</p>
+      <p class="helper scanner-help">Garde le code entier et net, sans reflet, avec un peu de blanc de chaque côté. Si l’image est floue, éloigne légèrement le téléphone ou change de caméra. Tu peux aussi utiliser « Photo du code » ou entrer les chiffres.</p>
     </div>
   </dialog>
 
@@ -378,7 +409,7 @@
         <button type="button" class="close-btn" data-close="amazonDialog" aria-label="Fermer Amazon Business">×</button>
       </div>
       <p id="amazonProductName" class="product-name"></p>
-      <p class="helper">Sur iPhone, le premier bouton utilise le lien destiné à l’application Amazon Business. Utilise ton compte professionnel dans cette application.</p>
+      <p class="helper">Le premier bouton utilise le lien destiné à l’application Amazon Business. Utilise ton compte professionnel dans cette application.</p>
       <div class="amazon-links">
         <a id="amazonProductLink" class="amazon-btn" target="_blank" rel="noopener noreferrer">Ouvrir dans l’app Amazon Business</a>
         <a id="amazonBrowserLink" class="secondary-btn" target="_blank" rel="noopener noreferrer">Ouvrir sur le site web</a>
@@ -388,7 +419,20 @@
     </div>
   </dialog>
 
+  <dialog id="orderDialog" class="modal small-modal" aria-labelledby="orderDialogTitle">
+    <form id="orderForm"><div class="modal-head"><h2 id="orderDialogTitle">Enregistrer une commande</h2><button type="button" class="close-btn" data-close="orderDialog">×</button></div>
+      <label>Produit<select id="orderProduct" required></select></label>
+      <label>Unité d’achat<select id="orderUnit"></select></label>
+      <label>Quantité commandée<input id="orderQty" type="number" min="0.001" step="0.001" inputmode="decimal" required /></label>
+      <label>Coût estimé par unité d’achat (CAD)<input id="orderCost" type="number" min="0" step="any" inputmode="decimal" required /></label>
+      <label>Livraison prévue<input id="orderDate" type="date" /></label><label>Référence fournisseur<input id="orderReference" maxlength="100" /></label><label>Note<input id="orderNote" maxlength="300" /></label>
+      <p id="orderPreview" class="helper"></p><div class="modal-actions"><button type="button" class="secondary-btn" data-close="orderDialog">Annuler</button><button type="submit" class="primary-btn">Enregistrer</button></div>
+    </form>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=3.2.2"></script>
+  <script src="inventory-core.js?v=4.0.0"></script>
+  <script src="inventory.js?v=4.0.0"></script>
+  <script src="statistics.js?v=4.0.0"></script>
+  <script src="app.js?v=4.0.0"></script>
 </body>
 </html>

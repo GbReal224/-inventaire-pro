@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
-const {webkit}=require('playwright');
+const {webkit,chromium}=require('playwright');
 
 const fixtures=[
   {format:'UPCA',code:'012345678905',bits:'10100011010011001001001101111010100011011000101010101000010001001001000111010011100101001110101'},
@@ -28,7 +28,7 @@ before(async()=>{
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   base=`http://127.0.0.1:${server.address().port}`;
-  browser=await webkit.launch({headless:true});
+  browser=await (process.env.TEST_BROWSER==='chromium'?chromium:webkit).launch({headless:true});
 });
 after(async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve))});
 
@@ -38,7 +38,7 @@ async function openApp(t){
   const page=await context.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   t.after(()=>assert.deepEqual(errors,[],'No uncaught browser errors'));
-  await page.goto(base);await page.waitForFunction(()=>typeof db!=='undefined'&&db&&document.getElementById('lastSavedText').textContent.includes('Sauvegardé'));
+  await page.goto(base);await page.waitForFunction(()=>typeof db!=='undefined'&&db&&settings.schemaVersion===4&&document.getElementById('lastSavedText').textContent.includes('Sauvegardé'));
   return {page,context};
 }
 
@@ -140,7 +140,7 @@ test('Installed-app backgrounding stops the stream and returning restarts it',as
 test('Photo fallback reads an actual image and finds the existing inventory product',async t=>{
   const {page}=await openApp(t);await installCameraMock(page);
   const image=await createFixtureCanvas(page,fixtures[1],'rotated');
-  await page.evaluate(()=>products=[{id:'test-product',name:'Produit test',barcode:'5901234123457',unit:'unité'}]);
+  await page.evaluate(()=>put(PRODUCTS,Core.product({id:'test-product',name:'Produit test',barcode:'5901234123457',unit:'unité'})));
   await page.click('#scanTopBtn');
   await page.locator('#barcodeImageInput').setInputFiles({name:'barcode.png',mimeType:'image/png',buffer:Buffer.from(image.split(',')[1],'base64')});
   await page.waitForFunction(()=>$('scanCodeText').textContent==='5901234123457');
@@ -151,7 +151,7 @@ test('Amazon links use the Business app route and preserve the exact product',as
   const {page,context}=await openApp(t);await installCameraMock(page);
   const productUrl='https://www.amazon.ca/dp/B012345678?th=1&psc=1';
   const appUrl='https://business.amazon.ca/abredir/dp/B012345678?th=1&psc=1';
-  await page.evaluate(productUrl=>{products=[{id:'test',name:'Produit test',barcode:'012345678905',productUrl}];renderInventory();navigate('inventory')},productUrl);
+  await page.evaluate(async productUrl=>{await put(PRODUCTS,Core.product({id:'test',name:'Produit test',barcode:'012345678905',productUrl}));navigate('inventory')},productUrl);
   await page.click('#inventoryList [data-amazon]');
   assert.equal(await page.getAttribute('#amazonBusinessLoginLink','href'),'https://business.amazon.ca/fr/login');
   assert.equal(await page.getAttribute('#amazonProductLink','href'),appUrl);

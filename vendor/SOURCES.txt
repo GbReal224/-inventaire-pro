@@ -1,0 +1,11 @@
+Scanner dependencies (bundled locally for offline use)
+
+zxing-wasm 3.1.6, reader-only IIFE build (MIT)
+https://github.com/Sec-ant/zxing-wasm
+https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.6/dist/iife/reader/index.js
+https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.6/dist/reader/zxing_reader.wasm
+The distributed files are unmodified; filenames include their version.
+
+The WebAssembly reader includes ZXing-C++ (Apache-2.0).
+https://github.com/zxing-cpp/zxing-cpp
+Licenses are included in this directory.

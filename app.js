@@ -7,10 +7,13 @@ let products = [];
 let movements = [];
 let toastTimer;
 let tempPhotoData = '';
-let scannerControls = null;
-let scannerReader = null;
 let scannerTarget = 'standalone';
 let scanLastCode = '';
+let scannerSession = 0;
+let scannerTimer;
+let scannerStream = null;
+let scannerCameraId = '';
+let scannerLibraryPromise = null;
 
 const $ = (id) => document.getElementById(id);
 const fmtQty = (n) => Number(n || 0).toLocaleString('fr-CA', { maximumFractionDigits: 2 });
@@ -125,7 +128,7 @@ function renderCategories(){const select=$('categoryFilter'),current=select.valu
 function bindCardActions(root){
   root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openProduct(products.find(p=>p.id===b.dataset.edit)));
   root.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>openMovement(products.find(p=>p.id===b.dataset.move)));
-  root.querySelectorAll('[data-amazon]').forEach(b=>b.onclick=()=>{const p=products.find(p=>p.id===b.dataset.amazon);openExternal(productAmazonUrl(p))});
+  root.querySelectorAll('[data-amazon]').forEach(b=>b.onclick=()=>openAmazonBusiness(products.find(p=>p.id===b.dataset.amazon)));
 }
 
 function updatePhotoPreview(){
@@ -224,7 +227,22 @@ async function compressImage(file){
 async function handlePhoto(file){try{showToast('Préparation de la photo…');tempPhotoData=await compressImage(file);updatePhotoPreview();showToast('Photo ajoutée')}catch(e){console.error(e);showToast('Impossible de lire cette photo')}}
 
 /* ---------- Amazon ---------- */
-function amazonSearchFromForm(){const term=normalizeBarcode($('barcode').value)||$('productName').value.trim();if(!term)return showToast('Scanne un code ou entre un nom de produit');openExternal(amazonSearchUrl(term))}
+const AMAZON_BUSINESS_LOGIN = 'https://business.amazon.ca/fr/login';
+function isAmazonDestination(value){
+  try{const host=new URL(value).hostname.toLowerCase();return /(^|\.)amazon\.(ca|com)$/.test(host)||['amzn.to','a.co'].includes(host)}catch{return false}
+}
+function openAmazonBusiness(p){
+  if(!p)return;
+  const destination=productAmazonUrl(p);
+  // Keep existing supplier links intact. Amazon's Business account shares amazon.ca.
+  if(!isAmazonDestination(destination)){openExternal(destination);return}
+  stopScanner();
+  $('amazonProductName').textContent=p.name||p.barcode||'Recherche de produit';
+  $('amazonProductLink').href=destination;
+  $('amazonBusinessLoginLink').href=AMAZON_BUSINESS_LOGIN;
+  if(!$('amazonDialog').open)$('amazonDialog').showModal();
+}
+function amazonSearchFromForm(){const term=normalizeBarcode($('barcode').value)||$('productName').value.trim();if(!term)return showToast('Scanne un code ou entre un nom de produit');openAmazonBusiness({name:$('productName').value.trim(),barcode:term})}
 
 /* ---------- Statistiques & graphiques ---------- */
 function statsDays(){return Number($('statsPeriod')?.value||30)}
@@ -309,26 +327,132 @@ function renderStats(){
 
 /* ---------- Scanner UPC / EAN ---------- */
 async function ensureZXing(){
-  if(window.ZXingBrowser)return true;
-  const urls=['https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js','https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js'];
-  for(const url of urls){
-    try{await new Promise((resolve,reject)=>{const old=document.querySelector(`script[data-zxing="${url}"]`);if(old){old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return}const sc=document.createElement('script');sc.src=url;sc.dataset.zxing=url;sc.onload=resolve;sc.onerror=reject;document.head.appendChild(sc)});if(window.ZXingBrowser)return true}catch(e){}
-  }
-  return false;
+  if(scannerLibraryPromise)return scannerLibraryPromise;
+  scannerLibraryPromise=(async()=>{
+    if(!window.ZXingWASM)await new Promise((resolve,reject)=>{
+      const script=document.createElement('script');
+      const finish=error=>{clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();reject(error)}else resolve()};
+      const timer=setTimeout(()=>finish(new Error('Scanner loading timeout')),10000);
+      script.src='vendor/zxing-wasm-reader-3.1.6.js';
+      script.onload=()=>finish();script.onerror=()=>finish(new Error('Scanner script unavailable'));
+      document.head.appendChild(script);
+    });
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+    try{
+      // Both files are shipped and cached with the app; no CDN is needed on iPhone.
+      const response=await fetch('vendor/zxing_reader-3.1.6.wasm',{signal:controller.signal});
+      if(!response.ok)throw new Error('Scanner binary unavailable');
+      await ZXingWASM.prepareZXingModule({overrides:{wasmBinary:await response.arrayBuffer()},fireImmediately:true});
+    }finally{clearTimeout(timer)}
+    return true;
+  })().catch(error=>{console.error(error);scannerLibraryPromise=null;return false});
+  return scannerLibraryPromise;
 }
-function stopScanner(){try{scannerControls?.stop()}catch(e){}scannerControls=null;scannerReader=null;const video=$('scannerVideo');if(video?.srcObject){video.srcObject.getTracks().forEach(t=>t.stop());video.srcObject=null}}
+function stopScanner(){
+  scannerSession++;clearTimeout(scannerTimer);
+  const video=$('scannerVideo');
+  for(const stream of new Set([scannerStream,video?.srcObject]))stream?.getTracks().forEach(t=>t.stop());
+  scannerStream=null;
+  if(video){video.pause();video.srcObject=null}
+}
+function scannerIsCurrent(session){return session===scannerSession&&$('scannerDialog').open&&!document.hidden}
+function scannerErrorMessage(error){
+  if(['NotAllowedError','PermissionDeniedError'].includes(error?.name))return 'Accès à la caméra refusé. Autorise la caméra pour ce site, puis touche « Relancer la caméra ». Tu peux aussi utiliser « Photo du code ».';
+  if(['NotFoundError','DevicesNotFoundError'].includes(error?.name))return 'Aucune caméra disponible. Utilise « Photo du code » ou entre les chiffres.';
+  if(['NotReadableError','TrackStartError'].includes(error?.name))return 'La caméra est occupée. Ferme les autres apps qui l’utilisent, puis relance la caméra.';
+  return 'La caméra n’a pas pu démarrer. Touche « Relancer la caméra » ou utilise « Photo du code ».';
+}
+async function updateScannerCameras(session,stream){
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    if(!scannerIsCurrent(session))return;
+    const cameras=devices.filter(d=>d.kind==='videoinput'&&d.deviceId),select=$('scannerCamera');
+    select.replaceChildren();
+    cameras.forEach((camera,i)=>{const option=document.createElement('option');option.value=camera.deviceId;option.textContent=camera.label||`Caméra ${i+1}`;select.appendChild(option)});
+    const current=stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+    if(current)select.value=current;
+    $('scannerCameraField').classList.toggle('hidden',cameras.length<2);
+  }catch{/* Camera selection is optional; decoding continues. */}
+}
+async function configureScannerFocus(track,session){
+  try{
+    const capabilities=track.getCapabilities?.();
+    if(capabilities?.focusMode?.includes('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]});
+    if(!scannerIsCurrent(session))return;
+    const zoom=capabilities?.zoom;
+    if(zoom&&zoom.max>zoom.min){
+      const input=$('scannerZoom');input.min=zoom.min;input.max=Math.min(zoom.max,Math.max(4,zoom.min));input.step=zoom.step||0.1;
+      input.value=track.getSettings?.().zoom??zoom.min;
+      $('scannerZoomValue').textContent=`${Number(input.value).toFixed(1)}×`;
+      $('scannerZoomField').classList.remove('hidden');
+    }
+  }catch{/* Unsupported focus controls must not prevent scanning. */}
+}
+function scannedBarcodeText(result){
+  if(!result||!result.isValid)return '';
+  const text=normalizeBarcode(result.text);
+  // ZXing-C++ normalizes UPCs to EAN-13. Preserve the digits printed on the product.
+  try{const original=normalizeBarcode(JSON.parse(result.extra||'{}').UPCE);if(original.length===8)return original}catch{}
+  return text.length===13&&text.startsWith('0')?text.slice(1):text;
+}
+async function decodeBarcodeFrame(source,crop=false){
+  const width=source.videoWidth||source.naturalWidth||source.width,height=source.videoHeight||source.naturalHeight||source.height;
+  if(!width||!height)return '';
+  const canvas=$('scannerCanvas'),sy=crop?Math.floor(height*0.25):0,sh=crop?Math.floor(height*0.5):height;
+  const scale=Math.min(1,1600/Math.max(width,sh));canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(sh*scale));
+  const context=canvas.getContext('2d',{willReadFrequently:true});
+  context.drawImage(source,0,sy,width,sh,0,0,canvas.width,canvas.height);
+  const results=await ZXingWASM.readBarcodes(context.getImageData(0,0,canvas.width,canvas.height),{
+    formats:['EAN13','EAN8','UPCA','UPCE'],tryHarder:true,tryRotate:true,tryInvert:true,
+    tryDownscale:true,maxNumberOfSymbols:1,returnErrors:false
+  });
+  return scannedBarcodeText(results[0]);
+}
+async function scanVideoFrame(session,attempt=0){
+  if(!scannerIsCurrent(session))return;
+  const video=$('scannerVideo');
+  try{
+    if(video.readyState>=2){
+      const code=await decodeBarcodeFrame(video,attempt%2===0);
+      if(!scannerIsCurrent(session))return;
+      if(code){handleScanDetected(code);return}
+    }
+  }catch(error){
+    if(!scannerIsCurrent(session))return;
+    stopScanner();console.error(error);$('scannerStatus').textContent='La lecture a été interrompue. Relance la caméra ou utilise « Photo du code ».';return;
+  }
+  if(scannerIsCurrent(session))scannerTimer=setTimeout(()=>scanVideoFrame(session,attempt+1),180);
+}
 async function startScanner(){
   stopScanner();scanLastCode='';$('scanResult').classList.add('hidden');$('scannerStatus').textContent='Démarrage de la caméra…';
-  if(!window.isSecureContext){$('scannerStatus').textContent='La caméra nécessite une adresse HTTPS. Ouvre l’app depuis GitHub Pages.';return}
+  const session=scannerSession;
+  $('scannerCameraField').classList.add('hidden');$('scannerZoomField').classList.add('hidden');
+  if(!window.isSecureContext){$('scannerStatus').textContent='La caméra nécessite une adresse HTTPS. Ouvre l’app depuis son adresse sécurisée.';return}
   if(!navigator.mediaDevices?.getUserMedia){$('scannerStatus').textContent='Caméra non disponible. Utilise « Photo du code » ou entre le code manuellement.';return}
-  if(!(await ensureZXing())){$('scannerStatus').textContent='Le moteur du scanner n’a pas pu se charger. Vérifie Internet ou utilise le code manuel.';return}
+  if(!(await ensureZXing())){if(scannerIsCurrent(session))$('scannerStatus').textContent='Le lecteur de codes est indisponible. Rouvre l’app avec Internet pour terminer sa mise à jour.';return}
+  if(!scannerIsCurrent(session))return;
+  let stream;
   try{
-    scannerReader=new ZXingBrowser.BrowserMultiFormatReader();
-    scannerControls=await scannerReader.decodeFromConstraints({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}},$('scannerVideo'),(result,error,controls)=>{
-      if(result){const code=normalizeBarcode(result.getText?result.getText():String(result.text||result));if(code){try{controls.stop()}catch(e){}handleScanDetected(code)}}
-    });
-    $('scannerStatus').textContent='Caméra active — place le code UPC/EAN dans le cadre.';
-  }catch(e){console.error(e);$('scannerStatus').textContent='Impossible d’ouvrir la caméra. Autorise la caméra pour ce site ou utilise « Photo du code ».'}
+    const videoConstraints=scannerCameraId?{deviceId:{exact:scannerCameraId}}:{facingMode:{ideal:'environment'}};
+    try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{...videoConstraints,width:{ideal:1920},height:{ideal:1080}}})}
+    catch(error){
+      if(!scannerIsCurrent(session))return;
+      if(!['OverconstrainedError','NotFoundError'].includes(error?.name))throw error;
+      scannerCameraId='';stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'}}});
+    }
+    if(!scannerIsCurrent(session)){stream.getTracks().forEach(t=>t.stop());return}
+    scannerStream=stream;
+    const video=$('scannerVideo');video.muted=true;video.autoplay=true;video.playsInline=true;video.srcObject=stream;
+    await video.play();
+    if(!scannerIsCurrent(session)){stream.getTracks().forEach(t=>t.stop());return}
+    $('scannerStatus').textContent='Caméra active — garde le code net, à environ 15–25 cm. Change de caméra si l’image reste floue.';
+    updateScannerCameras(session,stream);configureScannerFocus(stream.getVideoTracks()[0],session);
+    scanVideoFrame(session);
+  }catch(e){
+    stream?.getTracks().forEach(t=>t.stop());
+    if(!scannerIsCurrent(session))return;
+    stopScanner();console.error(e);$('scannerStatus').textContent=scannerErrorMessage(e);
+  }
 }
 function handleScanDetected(code){scanLastCode=normalizeBarcode(code);if(!scanLastCode)return;stopScanner();$('scanCodeText').textContent=scanLastCode;$('scanResult').classList.remove('hidden');$('scannerStatus').textContent='Code détecté ✓';if(navigator.vibrate)navigator.vibrate(80)}
 function openScanner(target='standalone'){scannerTarget=target;scanLastCode='';$('manualBarcode').value='';$('scanResult').classList.add('hidden');if(!$('scannerDialog').open)$('scannerDialog').showModal();startScanner()}
@@ -341,14 +465,22 @@ function useScannedCode(){
   const existing=products.find(p=>normalizeBarcode(p.barcode)===code);if(existing){openProduct(existing);showToast('Produit trouvé dans ton inventaire');return}
   openProduct();$('barcode').value=code;$('supplier').value='Amazon Business';$('productName').placeholder='Nom du produit trouvé sur Amazon';showToast('Nouveau code ajouté');
 }
-function searchScannedOnAmazon(){const code=scanLastCode||normalizeBarcode($('manualBarcode').value);if(!code)return showToast('Aucun code détecté');openExternal(amazonSearchUrl(code))}
+function searchScannedOnAmazon(){const code=scanLastCode||normalizeBarcode($('manualBarcode').value);if(!code)return showToast('Aucun code détecté');openAmazonBusiness(products.find(p=>normalizeBarcode(p.barcode)===code)||{barcode:code})}
 async function decodeBarcodePhoto(file){
-  if(!file)return;$('scannerStatus').textContent='Lecture de la photo…';
-  if(!(await ensureZXing())){$('scannerStatus').textContent='Moteur de lecture indisponible.';return}
+  if(!file)return;stopScanner();const session=scannerSession;
+  scanLastCode='';$('scanResult').classList.add('hidden');$('scannerStatus').textContent='Lecture de la photo…';
+  if(!(await ensureZXing())){if(scannerIsCurrent(session))$('scannerStatus').textContent='Lecteur indisponible. Rouvre l’app avec Internet pour terminer sa mise à jour.';return}
+  if(!scannerIsCurrent(session))return;
+  const url=URL.createObjectURL(file);
   try{
-    const data=await fileToDataUrl(file),img=$('barcodeDecodeImage');img.src=data;await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});
-    const reader=new ZXingBrowser.BrowserMultiFormatReader(),result=await reader.decodeFromImageElement(img);handleScanDetected(result.getText());
-  }catch(e){console.error(e);$('scannerStatus').textContent='Aucun code lisible sur cette photo. Cadre le code de plus près et réessaie.'}
+    const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});
+    if(!scannerIsCurrent(session))return;
+    const code=await decodeBarcodeFrame(img)||await decodeBarcodeFrame(img,true);
+    if(!scannerIsCurrent(session))return;
+    if(code)handleScanDetected(code);
+    else $('scannerStatus').textContent='Aucun code lisible sur cette photo. Garde le code net et entier, avec un peu de blanc de chaque côté.';
+  }catch(e){if(scannerIsCurrent(session))$('scannerStatus').textContent='Impossible de lire cette photo. Essaie une autre photo ou entre le code manuellement.'}
+  finally{URL.revokeObjectURL(url)}
 }
 
 /* ---------- PDF local sans service externe ---------- */
@@ -419,9 +551,16 @@ function setupEvents(){
   $('importInput').addEventListener('change',e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value=''});
   $('photoLibraryInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('photoCameraInput').addEventListener('change',e=>{if(e.target.files[0])handlePhoto(e.target.files[0]);e.target.value=''});$('removePhotoBtn').onclick=()=>{tempPhotoData='';updatePhotoPreview()};
   $('barcode').addEventListener('input',e=>e.target.value=normalizeBarcode(e.target.value));$('scanFromFormBtn').onclick=()=>openScanner('form');$('amazonSearchFormBtn').onclick=amazonSearchFromForm;
+  $('scannerCamera').addEventListener('change',e=>{scannerCameraId=e.target.value;startScanner()});
+  $('scannerZoom').addEventListener('input',async e=>{
+    const zoom=Number(e.target.value),track=scannerStream?.getVideoTracks()[0];
+    if(!track)return;
+    try{await track.applyConstraints({advanced:[{zoom}]});$('scannerZoomValue').textContent=`${zoom.toFixed(1)}×`}catch{showToast('Ce zoom n’est pas disponible sur cette caméra')}
+  });
+  $('amazonDialog').addEventListener('close',()=>{if($('scannerDialog').open&&!scanLastCode&&!document.hidden)startScanner()});
   $('scannerCloseBtn').onclick=closeScanner;$('scannerDialog').addEventListener('close',stopScanner);$('manualCodeBtn').onclick=useManualCode;$('scanUseBtn').onclick=useScannedCode;$('scanAmazonBtn').onclick=searchScannedOnAmazon;$('retryScannerBtn').onclick=startScanner;$('barcodeImageInput').addEventListener('change',e=>{if(e.target.files[0])decodeBarcodePhoto(e.target.files[0]);e.target.value=''});
   $('manualBarcode').addEventListener('input',e=>e.target.value=normalizeBarcode(e.target.value));$('manualBarcode').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();useManualCode()}});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopScanner()});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopScanner();else if($('scannerDialog').open&&!scanLastCode&&!$('amazonDialog').open)startScanner()});
 }
 
 (async function init(){

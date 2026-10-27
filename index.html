@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="app.css?v=3.2" />
+  <link rel="stylesheet" href="app.css?v=3.2.1" />
   <title>Inventaire Pro</title>
 </head>
 <body>
@@ -229,7 +229,7 @@
         </section>
         <section class="panel">
           <h3>Amazon Business</h3>
-          <p class="helper">Après un scan, l’app recherche le code-barres directement sur Amazon.ca. Si tu es connecté avec ton compte Amazon Business, tu peux ensuite acheter avec ton compte professionnel. Une fois le bon produit trouvé, colle son lien dans la fiche pour que le bouton <b>Commander Amazon Business</b> ouvre directement cette page la prochaine fois.</p>
+          <p class="helper">Le bouton <b>Amazon Business</b> te permet d’accéder à la connexion professionnelle, puis d’ouvrir le produit ou sa recherche. Amazon Business Canada utilise aussi amazon.ca : vérifie que ton compte professionnel est sélectionné sur Amazon. Tu peux enregistrer le lien exact du produit dans sa fiche.</p>
         </section>
         <section class="panel">
           <h3>Sauvegarde locale</h3>
@@ -335,18 +335,22 @@
     </form>
   </dialog>
 
-  <dialog id="scannerDialog" class="modal scanner-modal">
+  <dialog id="scannerDialog" class="modal scanner-modal" aria-labelledby="scannerTitle">
     <div class="scanner-wrap">
       <div class="modal-head">
-        <div><p class="eyebrow">SCAN UPC / EAN</p><h2>Scanner un produit</h2></div>
-        <button id="scannerCloseBtn" type="button" class="close-btn">×</button>
+        <div><p class="eyebrow">SCAN UPC / EAN</p><h2 id="scannerTitle">Scanner un produit</h2></div>
+        <button id="scannerCloseBtn" type="button" class="close-btn" aria-label="Fermer le scanner">×</button>
       </div>
       <div class="scanner-stage">
-        <video id="scannerVideo" playsinline muted></video>
+        <video id="scannerVideo" autoplay playsinline webkit-playsinline muted></video>
         <div class="scan-guide"><span></span></div>
         <canvas id="scannerCanvas" class="hidden"></canvas>
       </div>
-      <p id="scannerStatus" class="scanner-status">Place le code-barres horizontalement dans le cadre.</p>
+      <p id="scannerStatus" class="scanner-status" role="status" aria-live="polite">Place le code-barres horizontalement dans le cadre.</p>
+      <div class="scanner-controls">
+        <label id="scannerCameraField" class="hidden">Caméra<select id="scannerCamera" aria-label="Choisir la caméra du scanner"></select></label>
+        <label id="scannerZoomField" class="hidden">Zoom <output id="scannerZoomValue" for="scannerZoom">1.0×</output><input id="scannerZoom" type="range" min="1" max="4" step="0.1" value="1" /></label>
+      </div>
       <div class="manual-code-row">
         <input id="manualBarcode" inputmode="numeric" maxlength="18" placeholder="Ou entrer le code manuellement" />
         <button id="manualCodeBtn" type="button" class="secondary-btn">Utiliser</button>
@@ -355,7 +359,6 @@
         <label class="secondary-btn file-photo-btn">Photo du code<input id="barcodeImageInput" type="file" accept="image/*" capture="environment" /></label>
         <button id="retryScannerBtn" type="button" class="secondary-btn">Relancer la caméra</button>
       </div>
-      <img id="barcodeDecodeImage" class="hidden" alt="" />
       <div id="scanResult" class="scan-result hidden">
         <span>Code détecté</span>
         <strong id="scanCodeText"></strong>
@@ -364,11 +367,27 @@
           <button id="scanAmazonBtn" type="button" class="amazon-btn">Chercher Amazon Business</button>
         </div>
       </div>
-      <p class="helper scanner-help">Le scanner utilise ZXing pour lire les codes UPC/EAN. Si la lecture en direct ne prend pas, utilise « Photo du code » ou entre les chiffres imprimés sous le code-barres.</p>
+      <p class="helper scanner-help">Garde le code entier et net, sans reflet, avec un peu de blanc de chaque côté. Si l’image est floue, éloigne légèrement l’iPhone ou change de caméra. Tu peux aussi utiliser « Photo du code » ou entrer les chiffres.</p>
+    </div>
+  </dialog>
+
+  <dialog id="amazonDialog" class="modal small-modal" aria-labelledby="amazonTitle">
+    <div class="amazon-dialog-content">
+      <div class="modal-head">
+        <div><p class="eyebrow">ACHAT PROFESSIONNEL</p><h2 id="amazonTitle">Amazon Business</h2></div>
+        <button type="button" class="close-btn" data-close="amazonDialog" aria-label="Fermer Amazon Business">×</button>
+      </div>
+      <p id="amazonProductName" class="product-name"></p>
+      <p class="helper">Connecte-toi à ton compte Amazon Business, puis reviens ici pour ouvrir le produit. Si tu es déjà connecté au compte professionnel, tu peux ouvrir le produit directement.</p>
+      <div class="amazon-links">
+        <a id="amazonBusinessLoginLink" class="amazon-btn" href="https://business.amazon.ca/fr/login" target="_blank" rel="noopener noreferrer">Se connecter à Amazon Business</a>
+        <a id="amazonProductLink" class="secondary-btn" target="_blank" rel="noopener noreferrer">Ouvrir le produit / la recherche</a>
+      </div>
+      <p class="helper">Si Amazon affiche ton compte personnel, utilise « Changer de compte » sur Amazon. Le compte actif est géré par Amazon.</p>
     </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=3.2"></script>
+  <script src="app.js?v=3.2.1"></script>
 </body>
 </html>

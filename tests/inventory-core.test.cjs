@@ -31,7 +31,7 @@ test('Invalid movements cannot modify stock',()=>{
 });
 test('Backup validation rejects corrupted data and unsafe URLs without changing the input',()=>{
   const valid={app:'Inventaire Pro',schemaVersion:4,products:[p()],movements:[],orders:[]};
-  const errors=[{products:[p(),p()]},{schemaVersion:5},{products:[{...p(),reserveStock:-1}]},{products:[{...p(),productUrl:'javascript:alert(1)'}]},{products:[{...p(),photoData:'data:image/svg+xml;base64,xxx'}]},{products:[{...p(),id:'x" onclick="oops'}]},{movements:[{id:'m1',productId:'missing',qty:1,date:new Date().toISOString()}]},{orders:[{id:'o1',productId:'p1',quantity:2,received:1,createdAt:new Date().toISOString(),status:'received'}]}];
+  const errors=[{products:[p(),p()]},{schemaVersion:6},{products:[{...p(),reserveStock:-1}]},{products:[{...p(),productUrl:'javascript:alert(1)'}]},{products:[{...p(),photoData:'data:image/svg+xml;base64,xxx'}]},{products:[{...p(),id:'x" onclick="oops'}]},{movements:[{id:'m1',productId:'missing',qty:1,date:new Date().toISOString()}]},{orders:[{id:'o1',productId:'p1',quantity:2,received:1,createdAt:new Date().toISOString(),status:'received'}]}];
   for(const change of errors)assert.throws(()=>Core.validateBackup({...valid,...change}));
   const original=JSON.stringify(valid);Core.validateBackup(valid);assert.equal(JSON.stringify(valid),original);
 });

@@ -1,4 +1,31 @@
-INVENTAIRE PRO 4.0.0 — iPHONE, ANDROID ET ORDINATEUR
+INVENTAIRE PRO 5.0.0 — COMPTAGE, EMPLACEMENTS ET PRESTATIONS
+
+Les dix ajouts complémentaires sont intégrés à la version 4. Le scanner et les liens Amazon Business sont conservés. La synchronisation reste préparée et désactivée, selon le choix de l’utilisateur.
+
+ACCÈS AUX NOUVEAUTÉS
+Accueil → Sur le terrain → Tous les outils. Les emplacements et lots sont aussi accessibles depuis chaque fiche de l’inventaire.
+
+17. Faire l’inventaire : comptage par emplacement et lot, filtres, aperçu des écarts et validation de toutes les lignes dans une seule transaction. Une modification concurrente bloque la validation d’un comptage devenu périmé.
+18. Doublons : avertissement avec ouverture de la fiche existante, blocage d’un code-barres actif identique (y compris l’équivalence UPC-A / EAN-13 avec zéro initial), contrôle à l’import et à la restauration d’une archive.
+19. Pertes et retours : motifs renversé, endommagé, périmé ou autre ; retour fournisseur avec remboursement reçu. Bilan distinct de la consommation et des achats.
+20. Emplacements : quantités distinctes par lieu, réserve/en main et lot. Transferts partiels, historique, annulation et filtres par emplacement.
+21. Alertes anticipées : délai fournisseur et marge en jours, estimation à partir de 30 jours de consommation. Seules les livraisons datées, non en retard et prévues avant épuisement sont prises en compte. L’estimation ne constitue pas une garantie de livraison.
+22. Prestations : plusieurs produits et emplacements, coût au moment de l’utilisation, référence client facultative, modèles réutilisables et quantités modifiables avant validation. Déduction et annulation groupées ; aucune ligne n’est appliquée si une quantité est indisponible.
+23. Dilution : convention explicite 1 part de concentré pour N parts d’eau, volume final en mL, calcul seul ou déduction du concentré en mL/litres. Le mélange préparé n’est pas créé comme nouveau produit.
+24. Justificatifs : jusqu’à 3 images/PDF de 4 Mo par réception, référence facture, livraison et rabais. Le coût d’achat et la valeur du stock comprennent les frais saisis et déduisent le rabais. Les justificatifs peuvent aussi être ajoutés depuis l’historique.
+25. Lots : identification des stocks existants ou à la réception, dates d’ouverture et de péremption, alertes à 30 jours. Allocation automatique des sorties par échéance, ou choix manuel d’un emplacement/lot.
+26. Catalogue Excel / CSV : lecture locale des fichiers XLSX, XLS, CSV et TSV, choix de feuille, correspondance des colonnes, aperçu, sélection et détection des erreurs/doublons. Import limité à 2 000 produits / 5 Mo, sans écraser les fiches présentes. Un modèle CSV est téléchargeable.
+
+DONNÉES ET MISE À JOUR
+La base existante est conservée et migrée vers IndexedDB version 3. Les anciens stocks restent dans leur emplacement déclaré et dans « En main ». Aucune quantité n’est changée par la migration.
+Les sauvegardes v3 et v4 restent importables. Les nouvelles sauvegardes au format 5 incluent les lots, emplacements, prestations, modèles, comptages et justificatifs. Les anciennes versions de l’app ne savent pas lire le format 5.
+Le lecteur Excel est embarqué et mis en cache ; les fichiers importés et justificatifs restent sur l’appareil.
+Fermer puis rouvrir l’app avec Internet et vérifier « Inventaire Pro 5.0.0 » dans Réglages. Aucune réinstallation nécessaire.
+
+VALIDATION
+Tests de domaine et tests de parcours sur WebKit et Chromium : lots, transferts partiels, comptage et annulation, prestations atomiques, modèles, dilution, justificatifs, restauration, import Excel/CSV, doublons, écrans mobiles et utilisation hors connexion. Les tests existants de stock, commandes, scanner et liens Business sont conservés.
+
+VERSION PRÉCÉDENTE — 4.0.0
 
 La mise à jour conserve la base IndexedDB existante. Le scanner iPhone et le lien Amazon Business validés sont conservés.
 

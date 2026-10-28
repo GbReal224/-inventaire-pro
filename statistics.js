@@ -6,7 +6,7 @@ function statsRange(){
   return {start,end,days:Math.max(1,(end-start)/86400000),valid:start<=end};
 }
 function movesWithin(days){const range=statsRange(),product=$('statsProduct').value;return movements.filter(m=>(!product||m.productId===product)&&new Date(m.date)>=range.start&&new Date(m.date)<=range.end)}
-function isConsumption(m){return !m.reversedBy&&(m.type?m.type==='consume':/Consommation depuis en main/i.test(m.label||''))}
+function isConsumption(m){return !m.reversedBy&&(m.type?['consume','dilution'].includes(m.type):/Consommation depuis en main/i.test(m.label||''))}
 function movementInventoryDelta(m){if(Number.isFinite(m.inventoryValueDelta))return m.inventoryValueDelta;const direction=movementDirection(m);return (direction==='add'?1:direction==='remove'?-1:0)*Number(m.qty||0)*Number(m.unitCostAtTime||0)}
 function movementDirection(m){
   if(m.type==='undo'||m.reversedBy)return 'neutral';

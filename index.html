@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-180.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="app.css?v=4.0.0" />
+  <link rel="stylesheet" href="app.css?v=5.0.0" />
   <title>Inventaire Pro</title>
 </head>
 <body>
@@ -50,6 +50,12 @@
           <button id="dashboardScanBtn" class="tool-btn"><span class="tool-icon">▥</span><span><b>Scanner</b><small>Trouver sur Amazon</small></span></button>
           <button id="dashboardPdfBtn" class="tool-btn"><span class="tool-icon">PDF</span><span><b>Rapport PDF</b><small>Sauvegarder un rapport</small></span></button>
           <button id="dashboardStatsBtn" class="tool-btn" data-nav="stats"><span class="tool-icon">▥</span><span><b>Statistiques</b><small>Consommation et valeur</small></span></button>
+        </section>
+
+        <section class="panel field-tools">
+          <div class="panel-title-row"><h3>Sur le terrain</h3><button class="text-btn" data-nav="operations">Tous les outils</button></div>
+          <div class="tool-grid"><button class="secondary-btn" data-tool="count">Faire l’inventaire</button><button class="secondary-btn" data-tool="service">Nouvelle prestation</button><button class="secondary-btn" data-tool="dilution">Calculer une dilution</button><button class="secondary-btn" data-nav="operations">Emplacements et lots</button></div>
+          <div id="forecastAlerts" class="operation-alerts"></div>
         </section>
 
         <section class="panel">
@@ -92,6 +98,7 @@
           <select id="inventorySort" aria-label="Trier les produits"><option value="name">Nom A–Z</option><option value="urgency">Urgence</option><option value="quantity">Quantité croissante</option><option value="value">Valeur décroissante</option></select>
         </div>
         <p id="inventoryCount" class="helper" role="status"></p>
+        <div class="product-actions"><button class="secondary-btn" data-tool="count">Compter le stock</button><button class="secondary-btn" data-nav="operations">Emplacements / lots</button><button class="secondary-btn" data-tool="catalog">Importer Excel / CSV</button></div>
         <div id="inventoryList" class="card-list product-list"></div>
       </section>
 
@@ -232,6 +239,14 @@
         <p id="historyCount" class="helper" role="status"></p><button id="historyMore" class="secondary-btn">Afficher 100 mouvements de plus</button>
       </section>
 
+      <section id="operationsView" class="view" aria-labelledby="operationsTitle">
+        <div class="section-head"><div><h2 id="operationsTitle">Outils terrain</h2><p class="muted">Comptage, prestations et stock par emplacement</p></div><button class="text-btn" data-nav="dashboard">Accueil</button></div>
+        <div class="panel tool-grid"><button class="primary-btn" data-tool="count">Faire l’inventaire</button><button class="primary-btn" data-tool="service">Nouvelle prestation</button><button class="secondary-btn" data-tool="dilution">Calculateur de dilution</button><button class="secondary-btn" data-tool="catalog">Importer Excel / CSV</button></div>
+        <section class="panel"><h3>Bilan des opérations</h3><p class="helper">Depuis le début de l’historique, hors opérations annulées. Les remboursements sont séparés des achats.</p><div id="operationsSummary" class="operation-summary"></div></section>
+        <section class="panel"><h3>Produits par emplacement et lot</h3><input id="positionsSearch" type="search" aria-label="Rechercher un produit, emplacement ou lot" placeholder="Produit, garage, véhicule, lot…" /><div id="positionsList" class="card-list"></div></section>
+        <section class="panel"><h3>Prestations et comptages enregistrés</h3><select id="activityFilter" aria-label="Type d’opération"><option value="">Toutes les opérations</option><option value="service">Prestations</option><option value="count">Comptages</option></select><div id="activitiesList" class="card-list"></div><button id="activitiesMore" class="secondary-btn" hidden>Afficher davantage</button></section>
+      </section>
+
       <section id="settingsView" class="view" aria-labelledby="settingsTitle">
         <div class="section-head">
           <div>
@@ -245,6 +260,7 @@
           <label class="settings-row file-row"><span>Importer une sauvegarde</span><b>Choisir</b><input id="importInput" type="file" accept="application/json,.json" /></label>
           <button id="restoreBackupBtn" class="settings-row" disabled><span>Récupérer les données avant le dernier import / effacement</span><b>Restaurer</b></button>
           <button id="exportCsvBtn" class="settings-row"><span>Exporter l’inventaire</span><b>CSV</b></button>
+          <button class="settings-row" data-tool="catalog"><span>Importer un catalogue Excel / CSV</span><b>Importer</b></button>
           <button id="seedBtn" class="settings-row"><span>Ajouter les exemples</span><b>Démo</b></button>
           <button id="clearBtn" class="settings-row destructive"><span>Effacer toutes les données</span><b>Effacer</b></button>
         </section>
@@ -256,13 +272,13 @@
           <h3>Sauvegarde locale</h3>
           <p class="helper">Produits, photos et historique utilisent IndexedDB sur cet appareil. Aucune donnée d’inventaire n’est envoyée par cette app.</p>
           <p id="backupStatus" class="helper"></p><p id="recoveryStatus" class="helper"></p>
-          <p class="helper">Garde une sauvegarde JSON dans Fichiers, Téléchargements ou un dossier de ton choix. Elle contient les photos, archives, commandes et mouvements. La copie de récupération locale ne remplace pas ce fichier.</p>
+          <p class="helper">Garde une sauvegarde JSON dans Fichiers, Téléchargements ou un dossier de ton choix. Elle contient les photos, archives, commandes, mouvements, lots, emplacements, prestations, modèles et justificatifs. La copie de récupération locale ne remplace pas ce fichier.</p>
         </section>
         <section class="panel"><h3>iPhone, Android et ordinateur</h3><p id="offlineStatus" class="helper"></p><p class="helper">Sur Android, ouvre cette adresse dans Chrome puis utilise le menu ⋮ → Installer l’application / Ajouter à l’écran d’accueil. Sur iPhone, utilise Safari → Partager → Sur l’écran d’accueil. Garde la même adresse pour retrouver les données de cet appareil.</p><button id="installBtn" class="primary-btn" hidden>Installer Inventaire Pro</button><p class="helper">Autorise la caméra pour scanner. La photo du code et la saisie manuelle restent disponibles. Le premier chargement nécessite une connexion.</p></section>
         <section class="panel"><h3>Synchronisation entre appareils</h3><p id="syncStatus" class="helper"></p><p class="helper">Les identifiants des produits, commandes et mouvements sont conservés dans les sauvegardes pour préparer la future synchronisation. Le choix du service et la connexion d’un compte se feront plus tard.</p></section>
         <section class="panel">
           <h3>Version</h3>
-          <p class="helper"><b id="appVersion"></b> — commandes, archives, corrections, sauvegardes vérifiées, unités d’achat, scanner iPhone et Android.</p>
+          <p class="helper"><b id="appVersion"></b> — inventaire par emplacement et lot, comptages, prestations, dilution, reçus, import Excel / CSV, scanner iPhone et Android.</p>
         </section>
       </section>
     </main>
@@ -309,14 +325,18 @@
             <button id="scanFromFormBtn" type="button" class="field-btn">Scanner</button>
           </div>
         </label>
+        <div id="duplicateHint" class="full notice hidden" role="status"></div>
 
-        <label>En inventaire / réserve<input id="reserveStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
-        <label>En main<input id="inHandStock" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
-        <label>Minimum en réserve<input id="minReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
-        <label>Stock cible<input id="targetReserve" type="number" min="0" step="0.01" inputmode="decimal" value="0" /></label>
+        <label>En inventaire / réserve<input id="reserveStock" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
+        <label>En main<input id="inHandStock" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
+        <label>Minimum en réserve<input id="minReserve" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
+        <label>Stock cible<input id="targetReserve" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
         <label class="cost-field">Coût par unité de stock (CAD)<input id="unitCost" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
         <label>Fournisseur<input id="supplier" maxlength="60" placeholder="Ex. Amazon Business" /></label>
         <label>Emplacement<input id="location" maxlength="60" placeholder="Ex. Étagère garage" /></label>
+        <label>Délai fournisseur (jours)<input id="leadDays" type="number" min="0" max="3650" step="1" value="0" inputmode="numeric" /></label>
+        <label>Marge de sécurité (jours)<input id="safetyDays" type="number" min="0" max="365" step="1" value="2" inputmode="numeric" /></label>
+        <p class="helper full">Les alertes anticipées utilisent les consommations des 30 derniers jours et les livraisons prévues avant épuisement du stock.</p>
         <label class="full">Lien exact du produit<input id="productUrl" type="url" inputmode="url" placeholder="https://www.amazon.ca/…" /></label>
         <div class="full amazon-form-actions">
           <button id="amazonSearchFormBtn" type="button" class="amazon-btn">Chercher sur Amazon Business</button>
@@ -350,7 +370,13 @@
         <option value="reserveMinus">Ajustement réserve −</option>
         <option value="handPlus">Ajustement en main +</option>
         <option value="handMinus">Ajustement en main −</option>
+        <option value="loss">Perte / produit endommagé</option>
+        <option value="supplierReturn">Retour au fournisseur</option>
       </select></label>
+      <div id="movementSourceFields"><label id="movementBucketLabel">Stock de départ<select id="movementBucket"><option value="hand">En main</option><option value="reserve">Réserve</option></select></label><label>Emplacement / lot de départ<select id="movementPosition"></select></label></div>
+      <label id="movementDestinationLabel">Emplacement d’arrivée<input id="movementDestination" maxlength="60" list="knownLocations" /></label>
+      <div id="lossFields" class="hidden"><label>Motif<select id="lossReason"><option value="spilled">Renversé</option><option value="damaged">Endommagé</option><option value="expired">Périmé</option><option value="other">Autre perte</option></select></label></div>
+      <label id="refundLabel" class="hidden">Remboursement reçu (CAD)<input id="refundAmount" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></label>
       <label>Unité de saisie<select id="movementUnit"></select></label>
       <label>Quantité<input id="movementQty" type="number" min="0.001" step="0.001" inputmode="decimal" value="1" required /></label>
       <p id="movementStockPreview" class="helper"></p>
@@ -358,6 +384,8 @@
         <label>Commande à réceptionner<select id="movementOrder"></select></label>
         <label><span id="movementCostLabel">Coût payé par unité (CAD)</span><input id="movementUnitCost" type="number" min="0" step="any" inputmode="decimal" value="0" /></label>
         <div id="movementPurchasePreview" class="purchase-preview">Coût de cet achat : 0,00 $</div>
+        <div class="form-grid"><label>Livraison (CAD)<input id="receiptShipping" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></label><label>Rabais (CAD)<input id="receiptDiscount" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></label><label class="full">Référence de facture / commande<input id="receiptReference" maxlength="200" /></label><label>Numéro de lot (facultatif)<input id="receiveLotCode" maxlength="80" /></label><label>Péremption<input id="receiveLotExpiry" type="date" /></label></div>
+        <label>Factures ou reçus<input id="receiptFiles" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label><p class="helper">Maximum 3 fichiers de 4 Mo. Le coût enregistré inclut la livraison et déduit le rabais.</p>
         <p class="helper">Ce coût est enregistré dans les statistiques. Le coût moyen du produit est recalculé automatiquement.</p>
       </div>
       <label>Note<input id="movementNote" maxlength="120" placeholder="Optionnel" /></label>
@@ -429,10 +457,50 @@
       <p id="orderPreview" class="helper"></p><div class="modal-actions"><button type="button" class="secondary-btn" data-close="orderDialog">Annuler</button><button type="submit" class="primary-btn">Enregistrer</button></div>
     </form>
   </dialog>
+  <datalist id="knownLocations"></datalist>
+  <dialog id="countDialog" class="modal wide-modal" aria-labelledby="countTitle">
+    <form id="countForm"><div class="modal-head"><div><p class="eyebrow">COMPTAGE PHYSIQUE</p><h2 id="countTitle">Faire l’inventaire</h2></div><button type="button" class="close-btn" data-close="countDialog">×</button></div>
+      <label>Nom du comptage<input id="countName" required maxlength="100" /></label>
+      <div class="filters"><select id="countLocation" aria-label="Filtrer les emplacements"></select><input id="countSearch" type="search" aria-label="Rechercher un produit à compter" placeholder="Produit ou code-barres…" /></div>
+      <p class="helper">Saisis les quantités réellement présentes. Un champ vide reste inchangé ; 0 signifie qu’il ne reste rien. Les valeurs saisies restent conservées quand tu changes de filtre.</p>
+      <div id="countRows" class="count-rows"></div><p id="countPreview" class="notice" role="status"></p>
+      <div class="modal-actions"><button type="button" class="secondary-btn" data-close="countDialog">Annuler</button><button type="submit" class="primary-btn">Valider le comptage</button></div>
+    </form>
+  </dialog>
+  <dialog id="stockDialog" class="modal wide-modal" aria-labelledby="stockTitle">
+    <div class="modal-head"><div><p class="eyebrow">EMPLACEMENTS ET LOTS</p><h2 id="stockTitle"></h2></div><button type="button" class="close-btn" data-close="stockDialog">×</button></div>
+    <div id="stockPositions"></div>
+    <form id="transferForm" class="operation-form"><h3>Transférer du stock</h3><label>Départ<select id="transferSource" required></select></label><div class="form-grid"><label>Quantité<input id="transferQty" type="number" min="0.001" step="any" value="1" required inputmode="decimal" /></label><label>Stock d’arrivée<select id="transferBucket"><option value="reserve">Réserve</option><option value="hand">En main</option></select></label><label class="full">Emplacement d’arrivée<input id="transferLocation" required maxlength="60" list="knownLocations" placeholder="Véhicule, garage…" /></label></div><button type="submit" class="primary-btn">Transférer</button></form>
+    <form id="lotForm" class="operation-form"><h3>Identifier un lot dans le stock existant</h3><p class="helper">Cette opération répartit le stock déjà présent. Pour un nouvel achat, utilise Recevoir.</p><label>Stock à identifier<select id="lotSource" required></select></label><div class="form-grid"><label>Quantité<input id="lotQty" type="number" min="0.001" step="any" value="1" required inputmode="decimal" /></label><label>Numéro du lot<input id="lotCode" required maxlength="80" /></label><label>Ouvert le<input id="lotOpened" type="date" /></label><label>Péremption<input id="lotExpiry" type="date" /></label></div><button type="submit" class="primary-btn">Identifier le lot</button></form>
+    <form id="lotDatesForm" class="operation-form"><h3>Dates d’un lot</h3><label>Lot<select id="lotEditSelect"></select></label><div class="form-grid"><label>Ouvert le<input id="lotEditOpened" type="date" /></label><label>Péremption<input id="lotEditExpiry" type="date" /></label></div><button type="submit" class="secondary-btn">Enregistrer les dates</button></form>
+  </dialog>
+  <dialog id="serviceDialog" class="modal wide-modal" aria-labelledby="serviceTitle">
+    <form id="serviceForm"><div class="modal-head"><div><p class="eyebrow">CONSOMMATION PAR PRESTATION</p><h2 id="serviceTitle">Nouvelle prestation</h2></div><button type="button" class="close-btn" data-close="serviceDialog">×</button></div>
+      <label>Modèle<select id="serviceTemplate"><option value="">Sans modèle</option></select></label><label>Nom de la prestation<input id="serviceName" required maxlength="100" placeholder="Nettoyage intérieur" /></label><label>Référence / client<input id="serviceReference" maxlength="200" placeholder="Facultatif" /></label>
+      <div class="operation-form"><label>Produit<select id="serviceProduct"></select></label><label>Emplacement<select id="servicePosition"></select></label><div class="form-grid"><label>Quantité<input id="serviceQty" type="number" min="0.001" step="any" value="1" inputmode="decimal" /></label><label>Unité<select id="serviceUnit"></select></label></div><button id="serviceAddLine" type="button" class="secondary-btn">Ajouter à la prestation</button></div>
+      <div id="serviceLines"></div><p id="servicePreview" class="notice" role="status"></p><p class="helper">Le coût comprend uniquement les produits consommés. Vérifie les quantités proposées par un modèle avant de valider.</p>
+      <div class="modal-actions"><button id="saveServiceTemplate" type="button" class="secondary-btn">Enregistrer comme modèle</button><button type="submit" class="primary-btn">Valider et déduire le stock</button></div>
+    </form>
+  </dialog>
+  <dialog id="dilutionDialog" class="modal small-modal" aria-labelledby="dilutionTitle">
+    <form id="dilutionForm"><div class="modal-head"><h2 id="dilutionTitle">Calculer une dilution</h2><button type="button" class="close-btn" data-close="dilutionDialog">×</button></div>
+      <p class="helper">Convention : 1 part de concentré pour N parts d’eau. Utilise le ratio indiqué par le fabricant.</p><label>Volume final (mL)<input id="dilutionVolume" type="number" min="0.001" step="any" value="1000" required inputmode="decimal" /></label><label>Parts d’eau pour 1 part de concentré<input id="dilutionRatio" type="number" min="0" step="any" value="9" required inputmode="decimal" /></label>
+      <p id="dilutionPreview" class="notice" role="status"></p><label>Concentré à déduire (facultatif)<select id="dilutionProduct"></select></label><label>Emplacement<select id="dilutionPosition"></select></label><p class="helper">La validation déduit le concentré sélectionné. Le mélange préparé n’est pas ajouté comme nouveau produit.</p><button id="recordDilution" type="submit" class="primary-btn">Enregistrer la préparation</button>
+    </form>
+  </dialog>
+  <dialog id="catalogDialog" class="modal wide-modal" aria-labelledby="catalogTitle">
+    <form id="catalogForm"><div class="modal-head"><h2 id="catalogTitle">Importer un catalogue</h2><button type="button" class="close-btn" data-close="catalogDialog">×</button></div>
+      <p class="helper">Ajoute des produits depuis Excel (.xlsx, .xls) ou CSV. Les fiches existantes restent conservées. Maximum 2 000 lignes et 5 Mo.</p><label>Fichier<input id="catalogFile" type="file" accept=".csv,.xlsx,.xls,.tsv" /></label><button id="catalogExample" type="button" class="text-btn">Télécharger un modèle CSV</button><label id="catalogSheetLabel" class="hidden">Feuille<select id="catalogSheet"></select></label>
+      <details id="catalogColumns"><summary>Vérifier la correspondance des colonnes</summary><div id="catalogMapping" class="form-grid"></div></details><p id="catalogStatus" class="notice" role="status">Choisis un fichier pour afficher un aperçu.</p><div id="catalogPreview" class="catalog-preview"></div><div class="modal-actions"><button type="button" class="secondary-btn" data-close="catalogDialog">Annuler</button><button id="catalogImportBtn" type="submit" class="primary-btn" disabled>Importer les produits sélectionnés</button></div>
+    </form>
+  </dialog>
+  <dialog id="receiptDialog" class="modal" aria-labelledby="receiptTitle"><form id="receiptForm"><div class="modal-head"><h2 id="receiptTitle">Justificatifs d’achat</h2><button type="button" class="close-btn" data-close="receiptDialog">×</button></div><p id="receiptSummary" class="helper"></p><div id="receiptList"></div><label>Ajouter des justificatifs<input id="extraReceiptFiles" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label><p class="helper">Maximum 3 fichiers par achat, 4 Mo chacun. Conservés sur cet appareil et dans les sauvegardes JSON.</p><button type="submit" class="primary-btn">Ajouter les fichiers</button></form></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="inventory-core.js?v=4.0.0"></script>
-  <script src="inventory.js?v=4.0.0"></script>
-  <script src="statistics.js?v=4.0.0"></script>
-  <script src="app.js?v=4.0.0"></script>
+  <script src="inventory-core.js?v=5.0.0"></script>
+  <script src="operations-core.js?v=5.0.0"></script>
+  <script src="inventory.js?v=5.0.0"></script>
+  <script src="statistics.js?v=5.0.0"></script>
+  <script src="operations.js?v=5.0.0"></script>
+  <script src="app.js?v=5.0.0"></script>
 </body>
 </html>

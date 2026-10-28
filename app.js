@@ -201,10 +201,10 @@ function useScannedCode(){
   const code=scanLastCode||normalizeBarcode($('manualBarcode').value);if(!code)return;
   closeScanner();
   if(scannerTarget==='form'){$('barcode').value=code;if(!$('supplier').value)$('supplier').value='Amazon Business';showToast('Code ajouté à la fiche');return}
-  const existing=products.find(p=>!p.archived&&normalizeBarcode(p.barcode)===code)||products.find(p=>normalizeBarcode(p.barcode)===code);if(existing){openProduct(existing);showToast('Produit trouvé dans ton inventaire');return}
+  const existing=products.find(p=>!p.archived&&Core.barcodeKey(p.barcode)===Core.barcodeKey(code))||products.find(p=>Core.barcodeKey(p.barcode)===Core.barcodeKey(code));if(existing){openProduct(existing);showToast('Produit trouvé dans ton inventaire');return}
   openProduct();$('barcode').value=code;$('supplier').value='Amazon Business';$('productName').placeholder='Nom du produit trouvé sur Amazon';showToast('Nouveau code ajouté');
 }
-function searchScannedOnAmazon(){const code=scanLastCode||normalizeBarcode($('manualBarcode').value);if(!code)return showToast('Aucun code détecté');openAmazonBusiness(products.find(p=>!p.archived&&normalizeBarcode(p.barcode)===code)||products.find(p=>normalizeBarcode(p.barcode)===code)||{barcode:code})}
+function searchScannedOnAmazon(){const code=scanLastCode||normalizeBarcode($('manualBarcode').value);if(!code)return showToast('Aucun code détecté');openAmazonBusiness(products.find(p=>!p.archived&&Core.barcodeKey(p.barcode)===Core.barcodeKey(code))||products.find(p=>Core.barcodeKey(p.barcode)===Core.barcodeKey(code))||{barcode:code})}
 async function decodeBarcodePhoto(file){
   if(!file)return;stopScanner();const session=scannerSession;
   scanLastCode='';$('scanResult').classList.add('hidden');$('scannerStatus').textContent='Lecture de la photo…';
@@ -266,6 +266,7 @@ function downloadBlob(name,content,type){const a=document.createElement('a');a.h
 function downloadBytes(name,bytes,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytes],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
 function setupEvents(){
   setupInventoryEvents();
+  setupOperationsEvents();
   document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
   document.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
   $('quickAddBtn').onclick=()=>openProduct();$('addProductBtn').onclick=()=>openProduct();

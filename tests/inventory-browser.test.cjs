@@ -13,7 +13,7 @@ before(async()=>{
   browsers.webkit=await webkit.launch({headless:true});browsers.chromium=await chromium.launch({headless:true});
 });
 after(async()=>{for(const b of Object.values(browsers))await b.close();await new Promise(resolve=>server.close(resolve))});
-async function ready(page){await page.waitForFunction(()=>typeof settings!=='undefined'&&settings.schemaVersion===4&&!mutationBusy)}
+async function ready(page){await page.waitForFunction(()=>typeof settings!=='undefined'&&settings.schemaVersion===5&&!mutationBusy)}
 async function app(t,engine){const context=await browsers[engine].newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,...(engine==='chromium'?{userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'}:{})});t.after(()=>context.close());const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());t.after(()=>assert.deepEqual(errors,[]));await page.goto(base);await ready(page);return {page,context}}
 async function createProduct(page,overrides={}){
   await page.click('#quickAddBtn');

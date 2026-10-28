@@ -38,7 +38,7 @@ async function openApp(t){
   const page=await context.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   t.after(()=>assert.deepEqual(errors,[],'No uncaught browser errors'));
-  await page.goto(base);await page.waitForFunction(()=>typeof db!=='undefined'&&db&&settings.schemaVersion===4&&document.getElementById('lastSavedText').textContent.includes('Sauvegardé'));
+  await page.goto(base);await page.waitForFunction(()=>typeof db!=='undefined'&&db&&settings.schemaVersion===5&&document.getElementById('lastSavedText').textContent.includes('Sauvegardé'));
   return {page,context};
 }
 

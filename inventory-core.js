@@ -1,7 +1,7 @@
 /* Domain rules shared by the app and its tests. No network or storage access. */
 (function(root){
   'use strict';
-  const VERSION='4.0.0', SCHEMA=4;
+  const VERSION='5.0.0', SCHEMA=5;
   const round=n=>Math.round((n+Number.EPSILON)*1e8)/1e8;
   function number(value,label,{min=0,positive=false}={}){
     if(typeof value!=='number'||!Number.isFinite(value)||Math.abs(value)>1e12||value<min||(positive&&value===0))throw new Error(`${label} : nombre invalide.`);
@@ -94,7 +94,7 @@
   }
   function validateBackup(data){
     if(!data||data.app!=='Inventaire Pro'||!Array.isArray(data.products)||!Array.isArray(data.movements))throw new Error('Ce fichier n’est pas une sauvegarde Inventaire Pro.');
-    if(data.schemaVersion!=null&&data.schemaVersion!==SCHEMA)throw new Error('Version de sauvegarde incompatible. Mets à jour l’application.');
+    if(data.schemaVersion!=null&&![4,SCHEMA].includes(data.schemaVersion))throw new Error('Version de sauvegarde incompatible. Mets à jour l’application.');
     if(!data.schemaVersion&&Number.parseFloat(data.version)>=4)throw new Error('Format de sauvegarde manquant.');
     if(data.products.length>50000||data.movements.length>500000)throw new Error('Sauvegarde trop volumineuse.');
     if(data.orders!=null&&!Array.isArray(data.orders))throw new Error('Liste de commandes invalide.');
